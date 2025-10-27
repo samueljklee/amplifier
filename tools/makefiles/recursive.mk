@@ -42,7 +42,7 @@ endif
 MAKE_DIRS_TMP := $(ALL_MAKE_DIRS)
 MAKE_DIRS_TMP := $(call FILTER_OUT,node_modules,$(MAKE_DIRS_TMP))
 MAKE_DIRS_TMP := $(call FILTER_OUT,site-packages,$(MAKE_DIRS_TMP))
-MAKE_DIRS := $(call FILTER_OUT,.cache,$(MAKE_DIRS_TMP))
+MAKE_DIRS := $(call FILTER_OUT,site-packages,$(call FILTER_OUT,node_modules,$(call FILTER_OUT,.data,$(call FILTER_OUT,sessions,$(ALL_MAKE_DIRS)))))
 
 .PHONY: .clean-error-log .print-error-log
 
