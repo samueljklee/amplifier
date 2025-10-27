@@ -1,19 +1,19 @@
-import { useState, useEffect, useRef } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import hljs from 'highlight.js/lib/core'
 import 'highlight.js/styles/github-dark.css'
+import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 // Import common languages
-import javascript from 'highlight.js/lib/languages/javascript'
-import typescript from 'highlight.js/lib/languages/typescript'
-import python from 'highlight.js/lib/languages/python'
-import json from 'highlight.js/lib/languages/json'
-import markdown from 'highlight.js/lib/languages/markdown'
 import bash from 'highlight.js/lib/languages/bash'
 import css from 'highlight.js/lib/languages/css'
-import xml from 'highlight.js/lib/languages/xml'
+import javascript from 'highlight.js/lib/languages/javascript'
+import json from 'highlight.js/lib/languages/json'
+import markdown from 'highlight.js/lib/languages/markdown'
+import python from 'highlight.js/lib/languages/python'
 import sql from 'highlight.js/lib/languages/sql'
+import typescript from 'highlight.js/lib/languages/typescript'
+import xml from 'highlight.js/lib/languages/xml'
 
 // Register languages
 hljs.registerLanguage('javascript', javascript)
@@ -141,21 +141,19 @@ export default function DraftViewer({ draftPath, iteration, wordCount, onViewMod
           <div className="flex bg-gray-200 dark:bg-gray-700 rounded-md p-1">
             <button
               onClick={() => setViewMode('preview')}
-              className={`px-3 py-1 text-sm rounded transition-colors ${
-                viewMode === 'preview'
+              className={`px-3 py-1 text-sm rounded transition-colors ${viewMode === 'preview'
                   ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
+                }`}
             >
               Preview
             </button>
             <button
               onClick={() => setViewMode('raw')}
-              className={`px-3 py-1 text-sm rounded transition-colors ${
-                viewMode === 'raw'
+              className={`px-3 py-1 text-sm rounded transition-colors ${viewMode === 'raw'
                   ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
+                }`}
             >
               Raw
             </button>
@@ -174,7 +172,7 @@ export default function DraftViewer({ draftPath, iteration, wordCount, onViewMod
               {fileContent.content}
             </pre>
           ) : (
-            <div className="max-w-none prose prose-slate dark:prose-invert prose-headings:font-bold prose-a:text-indigo-600 dark:prose-a:text-indigo-400">
+            <div className="max-w-none prose prose-slate dark:prose-invert prose-headings:font-bold prose-a:text-indigo-600 dark:prose-a:text-indigo-400 prose-table:table-auto">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
@@ -236,23 +234,48 @@ export default function DraftViewer({ draftPath, iteration, wordCount, onViewMod
                   // Enhance tables with better styling
                   table({ children }) {
                     return (
-                      <div className="overflow-x-auto my-4">
-                        <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
-                          {children}
-                        </table>
+                      <div className="overflow-x-auto my-6 -mx-4 sm:mx-0">
+                        <div className="inline-block min-w-full align-middle">
+                          <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+                            <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
+                              {children}
+                            </table>
+                          </div>
+                        </div>
                       </div>
+                    )
+                  },
+                  thead({ children }) {
+                    return (
+                      <thead className="bg-gray-100 dark:bg-gray-800">
+                        {children}
+                      </thead>
+                    )
+                  },
+                  tbody({ children }) {
+                    return (
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
+                        {children}
+                      </tbody>
+                    )
+                  },
+                  tr({ children }) {
+                    return (
+                      <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                        {children}
+                      </tr>
                     )
                   },
                   th({ children }) {
                     return (
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider bg-gray-100 dark:bg-gray-800">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">
                         {children}
                       </th>
                     )
                   },
                   td({ children }) {
                     return (
-                      <td className="px-3 py-2 text-sm text-gray-900 dark:text-gray-200">
+                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
                         {children}
                       </td>
                     )

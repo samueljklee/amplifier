@@ -172,7 +172,10 @@ class ToolGenerationOrchestrator:
                     path_str = str(rel_path)
 
                     # Skip build artifacts
-                    if any(pattern.rstrip("*") in path_str for pattern in BUILD_ARTIFACT_PATTERNS):
+                    if any(
+                        pattern.rstrip("*") in path_str
+                        for pattern in BUILD_ARTIFACT_PATTERNS
+                    ):
                         continue
 
                     logger.info(f"Generated file: {rel_path}")

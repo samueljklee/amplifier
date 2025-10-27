@@ -224,6 +224,11 @@ Return ONLY valid JSON, no additional text."""
             # Use defensive parsing
             summary_data = parse_llm_json(content)
 
+            # Validate we got a dict
+            if not isinstance(summary_data, dict):
+                logger.error("Expected JSON object from LLM")
+                return None
+
             # Validate required fields
             required_fields = ["summary", "key_points_for_ai_engineers"]
             for field in required_fields:

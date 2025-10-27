@@ -18,13 +18,26 @@ Beautiful, real-time web interface for executing and visualizing Amplifier AI ag
 - Node.js 18+
 - Amplifier CLI tools installed
 
-### Installation
+### Easiest Way - One Command
 
 ```bash
-# Install dependencies
+cd amplifier-web-ui
+./start.sh
+```
+
+This will:
+- Auto-install dependencies (first time only)
+- Start both backend and frontend servers
+- Open at http://localhost:5173
+- Press Ctrl+C to stop both servers
+
+### Alternative - Manual Steps
+
+```bash
+# Install dependencies (first time only)
 make install
 
-# Start development servers
+# Start both servers
 make dev
 ```
 
