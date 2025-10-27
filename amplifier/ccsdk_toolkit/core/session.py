@@ -65,22 +65,35 @@ class ClaudeSession:
         """Enter async context and initialize SDK client."""
         try:
             # Import SDK only when actually using it
-            from claude_code_sdk import ClaudeCodeOptions
-            from claude_code_sdk import ClaudeSDKClient
+            from claude_agent_sdk import ClaudeAgentOptions
+            from claude_agent_sdk import ClaudeSDKClient
 
-            self.client = ClaudeSDKClient(
-                options=ClaudeCodeOptions(
-                    system_prompt=self.options.system_prompt,
-                    max_turns=self.options.max_turns,
-                )
-            )
+            # Build options dict, including tools and permissions
+            sdk_options = {
+                "model": self.options.model,
+                "system_prompt": self.options.system_prompt,
+                "max_turns": self.options.max_turns,
+                "permission_mode": self.options.permission_mode,
+            }
+
+            # Add optional parameters if provided
+            if self.options.allowed_tools is not None:
+                sdk_options["allowed_tools"] = self.options.allowed_tools
+
+            if self.options.cwd is not None:
+                sdk_options["cwd"] = self.options.cwd
+
+            self.client = ClaudeSDKClient(options=ClaudeAgentOptions(**sdk_options))
             await self.client.__aenter__()
             return self
 
         except ImportError:
             raise SDKNotAvailableError(
-                "claude_code_sdk Python package not installed. Install with: pip install claude-code-sdk"
+                "claude-agent-sdk Python package not installed. Install with: pip install claude-agent-sdk or uv add claude-agent-sdk"
             )
+        except Exception as e:
+            # Catch and report SDK initialization errors clearly
+            raise SessionError(f"Failed to initialize Claude Agent SDK: {type(e).__name__}: {e}") from e
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit async context and cleanup."""
@@ -110,10 +123,16 @@ class ClaudeSession:
                 await self.client.query(prompt)
 
                 # Collect response with streaming support
+                # IMPORTANT: We need to consume ALL messages until completion
+                # This includes text, tool_use, tool_result blocks, etc.
                 response_text = ""
                 metadata: dict[str, Any] = {"attempt": attempt + 1}
+                all_messages = []  # Track all messages for debugging
 
                 async for message in self.client.receive_response():
+                    all_messages.append(message)  # Store for debugging
+
+                    # Extract text content from ContentBlock messages
                     if hasattr(message, "content"):
                         content = getattr(message, "content", [])
                         if isinstance(content, list):
@@ -141,6 +160,9 @@ class ClaudeSession:
                         if hasattr(message, "duration_ms"):
                             metadata["duration_ms"] = getattr(message, "duration_ms", 0)
 
+                # Store message count for debugging
+                metadata["message_count"] = len(all_messages)
+
                 # Add newline after streaming if enabled
                 should_stream = stream if stream is not None else self.options.stream_output
                 if should_stream and response_text:
@@ -152,9 +174,10 @@ class ClaudeSession:
                 # Empty response, will retry
                 raise ValueError("Received empty response from SDK")
             except ValueError as e:
-                last_error = str(e)
+                last_error = f"ValueError: {e}"
             except Exception as e:
-                last_error = str(e)
+                # Preserve exception type and details for better debugging
+                last_error = f"{type(e).__name__}: {e}"
 
             # Wait before retry (except on last attempt)
             if attempt < self.options.retry_attempts - 1:

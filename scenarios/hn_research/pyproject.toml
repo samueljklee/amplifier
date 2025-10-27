@@ -1,0 +1,29 @@
+[project]
+name = "hn-research"
+description = "Analyze top Hacker News posts to identify trends, relationships, and provide intelligent summaries"
+version = "1.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "amplifier",
+    "click>=8.0",
+    "httpx>=0.25.0",
+]
+
+[tool.uv.sources]
+amplifier = { path = "../../", editable = true }
+
+[tool.amplifier.workflow]
+stages = [
+    { id = "fetch_data", type = "process", label = "Fetch HN Posts", prompt = "Fetching top posts from Hacker News API" },
+    { id = "analyze_posts", type = "process", label = "Analyze Topics", depends_on = ["fetch_data"] },
+    { id = "explain_terms", type = "process", label = "Explain Terms", depends_on = ["analyze_posts"] },
+    { id = "generate_visualization", type = "process", label = "Generate Diagram", depends_on = ["analyze_posts"] },
+    { id = "generate_report", type = "output", label = "Final Report", depends_on = ["explain_terms", "generate_visualization"] }
+]
+
+[tool.amplifier.workflow.layout]
+positions.fetch_data = [100, 200]
+positions.analyze_posts = [350, 200]
+positions.explain_terms = [600, 150]
+positions.generate_visualization = [600, 250]
+positions.generate_report = [850, 200]

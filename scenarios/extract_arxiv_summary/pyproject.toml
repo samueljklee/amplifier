@@ -1,0 +1,28 @@
+[project]
+name = "extract-arxiv-summary"
+description = "Extract key points and summaries from arXiv papers for AI engineers"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "amplifier",
+    "click>=8.0",
+]
+
+[tool.uv.sources]
+amplifier = { path = "../../", editable = true }
+
+[tool.amplifier.workflow]
+stages = [
+    { id = "url_input", type = "input", label = "arXiv URL", prompt = "Enter arXiv paper URL" },
+    { id = "focus_input", type = "input", label = "Focus Area", prompt = "Enter focus area (e.g., 'machine learning systems')" },
+    { id = "fetch_paper", type = "process", label = "Fetch Paper", depends_on = ["url_input"] },
+    { id = "extract_summary", type = "process", label = "Extract Summary", depends_on = ["fetch_paper", "focus_input"] },
+    { id = "save_results", type = "output", label = "Save Results", depends_on = ["extract_summary"] }
+]
+
+[tool.amplifier.workflow.layout]
+positions.url_input = [100, 150]
+positions.focus_input = [100, 250]
+positions.fetch_paper = [350, 150]
+positions.extract_summary = [600, 200]
+positions.save_results = [850, 200]

@@ -1,0 +1,32 @@
+[project]
+name = "blog-writer"
+description = "Transform rough ideas into polished blog posts matching your writing style"
+version = "1.0.0"
+requires-python = ">=3.11"
+
+[tool.amplifier.workflow]
+stages = [
+    { id = "idea_input", type = "input", label = "Blog Idea", prompt = "Enter path to your idea/brain dump markdown file" },
+    { id = "writings_input", type = "input", label = "Writing Samples", prompt = "Enter path to directory with your existing writings" },
+    { id = "instructions_input", type = "input", label = "Additional Instructions (Optional)", prompt = "Any specific guidance? (e.g., 'remove private info', 'focus on technical details')" },
+    { id = "extract_style", type = "process", label = "Extract Writing Style", depends_on = ["writings_input"] },
+    { id = "write_draft", type = "process", label = "Generate Draft", depends_on = ["idea_input", "extract_style", "instructions_input"] },
+    { id = "review_sources", type = "process", label = "Review Sources", depends_on = ["write_draft"] },
+    { id = "review_style", type = "process", label = "Review Style", depends_on = ["review_sources"] },
+    { id = "user_feedback", type = "interaction", label = "User Review", depends_on = ["review_sources", "review_style"] },
+    { id = "revise_draft", type = "process", label = "Revise Draft", depends_on = ["user_feedback"] },
+    { id = "final_post", type = "output", label = "Final Blog Post", depends_on = ["user_feedback"] }
+]
+
+[tool.amplifier.workflow.layout]
+# Main workflow flows left-to-right with inputs, processing, review, interaction, and output stages
+positions.idea_input = [100, 100]
+positions.writings_input = [100, 200]
+positions.instructions_input = [100, 300]
+positions.extract_style = [350, 200]
+positions.write_draft = [600, 200]
+positions.review_sources = [850, 150]
+positions.review_style = [850, 250]
+positions.user_feedback = [1100, 200]
+positions.revise_draft = [1100, 350]
+positions.final_post = [1350, 200]

@@ -9,15 +9,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Try to import Claude Code SDK - it may not be available outside Claude Code environment
+# Try to import Claude Agent SDK - it may not be available outside Claude Code environment
 try:
-    from claude_code_sdk import ClaudeCodeOptions
-    from claude_code_sdk import ClaudeSDKClient
+    from claude_agent_sdk import ClaudeAgentOptions
+    from claude_agent_sdk import ClaudeSDKClient
 
     CLAUDE_SDK_AVAILABLE = True
 except ImportError:
     CLAUDE_SDK_AVAILABLE = False
-    logger.warning("Claude Code SDK not available - tests will pass without AI evaluation")
+    logger.warning("Claude Agent SDK not available - tests will pass without AI evaluation")
 
 
 class AIEvaluator:
@@ -102,7 +102,7 @@ Format: PASS|FAIL: Brief explanation"""
 
         response = ""
         async with ClaudeSDKClient(  # type: ignore
-            options=ClaudeCodeOptions(  # type: ignore
+            options=ClaudeAgentOptions(  # type: ignore
                 system_prompt="You are evaluating if a command ran successfully. Respond with 'PASS' or 'FAIL' followed by a colon and brief reason.",
                 max_turns=1,
             )

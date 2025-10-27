@@ -47,6 +47,10 @@ from .logger import LogLevel
 from .logger import ToolkitLogger
 from .logger import create_logger
 
+# Scenario base utilities
+from .scenario_base import add_describe_flag
+from .scenario_base import get_parameter_schema
+
 # Session management
 from .sessions import SessionManager
 from .sessions import SessionMetadata
@@ -86,4 +90,7 @@ __all__ = [
     # CLI
     "CliBuilder",
     "CliTemplate",
+    # Scenario base
+    "add_describe_flag",
+    "get_parameter_schema",
 ]

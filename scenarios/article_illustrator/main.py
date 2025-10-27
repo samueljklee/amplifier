@@ -13,6 +13,7 @@ from pathlib import Path
 import click
 from dotenv import load_dotenv
 
+from amplifier.ccsdk_toolkit.scenario_base import add_describe_flag
 from amplifier.utils.logger import get_logger
 
 from .content_analysis import ContentAnalyzer
@@ -267,6 +268,7 @@ class ArticleIllustratorPipeline:
 
 
 # CLI Interface
+@add_describe_flag(version="1.0", display_name="Article Illustrator")
 @click.command()
 @click.argument("article_path", type=click.Path(exists=True, path_type=Path))
 @click.option(

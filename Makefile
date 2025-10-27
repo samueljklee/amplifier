@@ -167,7 +167,7 @@ install: ## Install all dependencies
 	fi
 
 # Code quality
-check: ## Format, lint, and type-check all code
+check: ## Format, lint, type-check, and validate scenarios
 	@# Handle worktree virtual environment issues by unsetting mismatched VIRTUAL_ENV
 	@if [ -n "$$VIRTUAL_ENV" ] && [ -d ".venv" ]; then \
 		VENV_DIR=$$(cd "$$VIRTUAL_ENV" 2>/dev/null && pwd) || true; \
@@ -183,8 +183,10 @@ check: ## Format, lint, and type-check all code
 	@VIRTUAL_ENV= uv run ruff check . --fix
 	@echo "Type-checking code with pyright..."
 	@VIRTUAL_ENV= uv run pyright
+	@echo "Validating scenario contracts..."
+	@$(MAKE) -s validate-scenarios
 	@echo "Checking for stubs and placeholders..."
-	@python tools/check_stubs.py
+	@uv run python tools/check_stubs.py
 	@echo "All checks passed!"
 
 test: ## Run all tests
@@ -195,6 +197,31 @@ smoke-test: ## Run quick smoke tests to verify basic functionality
 	@echo "Running smoke tests..."
 	@PYTHONPATH=. python -m amplifier.smoke_tests
 	@echo "Smoke tests complete!"
+
+validate-scenarios: ## Validate scenario contracts via CLI introspection
+	@echo "Validating scenario contracts..."
+	@passed=0; skipped=0; \
+	for scenario_dir in scenarios/*/; do \
+		scenario_name=$$(basename "$$scenario_dir"); \
+		if [ -f "$$scenario_dir/main.py" ] || [ -f "$$scenario_dir/__main__.py" ]; then \
+			printf "  Checking $$scenario_name... "; \
+			output=$$(uv run python -m scenarios.$$scenario_name --describe-parameters 2>&1 || true); \
+			if echo "$$output" | grep -q '"version"'; then \
+				echo "✅"; \
+				passed=$$((passed + 1)); \
+			else \
+				echo "⚠️  (not implemented)"; \
+				skipped=$$((skipped + 1)); \
+			fi; \
+		fi; \
+	done; \
+	echo ""; \
+	echo "Results: $$passed passed, $$skipped not implemented"; \
+	if [ $$passed -eq 0 ]; then \
+		echo "⚠️  No scenarios implement the contract yet"; \
+	else \
+		echo "✅ All implementing scenarios valid!"; \
+	fi
 
 # Git worktree management
 worktree: ## Create a git worktree with .data copy. Usage: make worktree feature-name

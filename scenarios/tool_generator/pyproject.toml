@@ -1,0 +1,40 @@
+[project]
+name = "tool_generator"
+version = "0.1.0"
+description = "Generate amplifier CLI tools using Claude Code SDK delegation"
+requires-python = ">=3.11"
+dependencies = [
+    "amplifier",
+    "click>=8.0",
+    "pydantic>=2.0",
+    "anthropic>=0.28.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tool_generator*"]
+
+[tool.uv.sources]
+amplifier = { path = "../../", editable = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
+    "mypy>=1.0",
+    "ruff>=0.14.2",
+    "pyright>=1.1.407",
+]
+
+[tool.pyright]
+venvPath = "../.."
+venv = ".venv"
+typeCheckingMode = "basic"
+reportMissingImports = false
+exclude = [".venv", "sessions/**"]
+
+[tool.ruff]
+exclude = ["sessions/**"]

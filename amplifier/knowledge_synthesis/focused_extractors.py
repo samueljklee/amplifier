@@ -14,13 +14,13 @@ from dataclasses import dataclass
 from typing import Any
 
 try:
-    from claude_code_sdk import ClaudeCodeOptions
-    from claude_code_sdk import ClaudeSDKClient
+    from claude_agent_sdk import ClaudeAgentOptions
+    from claude_agent_sdk import ClaudeSDKClient
 
     CLAUDE_SDK_AVAILABLE = True
 except ImportError:
     CLAUDE_SDK_AVAILABLE = False
-    ClaudeCodeOptions = None
+    ClaudeAgentOptions = None
     ClaudeSDKClient = None
 
 logger = logging.getLogger(__name__)
@@ -80,10 +80,10 @@ Return ONLY valid JSON, no other text."""
         try:
             response = ""
             async with asyncio.timeout(120):  # 2 minutes timeout
-                if ClaudeSDKClient is None or ClaudeCodeOptions is None:
+                if ClaudeSDKClient is None or ClaudeAgentOptions is None:
                     raise RuntimeError("Claude SDK not available")
                 async with ClaudeSDKClient(
-                    options=ClaudeCodeOptions(
+                    options=ClaudeAgentOptions(
                         system_prompt="You are a concept extraction specialist. Extract ONLY concepts from text. Return ONLY valid JSON.",
                         max_turns=1,
                     )
@@ -180,10 +180,10 @@ Return ONLY valid JSON, no other text."""
         try:
             response = ""
             async with asyncio.timeout(120):  # 2 minutes timeout
-                if ClaudeSDKClient is None or ClaudeCodeOptions is None:
+                if ClaudeSDKClient is None or ClaudeAgentOptions is None:
                     raise RuntimeError("Claude SDK not available")
                 async with ClaudeSDKClient(
-                    options=ClaudeCodeOptions(
+                    options=ClaudeAgentOptions(
                         system_prompt="You are a relationship extraction specialist. Extract ONLY relationships from text. Return ONLY valid JSON.",
                         max_turns=1,
                     )
@@ -282,10 +282,10 @@ Return ONLY valid JSON, no other text."""
         try:
             response = ""
             async with asyncio.timeout(120):  # 2 minutes timeout
-                if ClaudeSDKClient is None or ClaudeCodeOptions is None:
+                if ClaudeSDKClient is None or ClaudeAgentOptions is None:
                     raise RuntimeError("Claude SDK not available")
                 async with ClaudeSDKClient(
-                    options=ClaudeCodeOptions(
+                    options=ClaudeAgentOptions(
                         system_prompt="You are an insight extraction specialist. Extract ONLY actionable insights from text. Return ONLY valid JSON.",
                         max_turns=1,
                     )
@@ -382,10 +382,10 @@ Return ONLY valid JSON, no other text."""
         try:
             response = ""
             async with asyncio.timeout(120):  # 2 minutes timeout
-                if ClaudeSDKClient is None or ClaudeCodeOptions is None:
+                if ClaudeSDKClient is None or ClaudeAgentOptions is None:
                     raise RuntimeError("Claude SDK not available")
                 async with ClaudeSDKClient(
-                    options=ClaudeCodeOptions(
+                    options=ClaudeAgentOptions(
                         system_prompt="You are a code pattern extraction specialist. Extract ONLY code patterns from text. Return ONLY valid JSON.",
                         max_turns=1,
                     )

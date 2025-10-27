@@ -16,13 +16,13 @@ from typing import Any
 from .config import get_config
 
 try:
-    from claude_code_sdk import ClaudeCodeOptions
-    from claude_code_sdk import ClaudeSDKClient
+    from claude_agent_sdk import ClaudeAgentOptions
+    from claude_agent_sdk import ClaudeSDKClient
 
     CLAUDE_SDK_AVAILABLE = True
 except ImportError:
     CLAUDE_SDK_AVAILABLE = False
-    ClaudeCodeOptions = None
+    ClaudeAgentOptions = None
     ClaudeSDKClient = None
 
 logger = logging.getLogger(__name__)
@@ -152,14 +152,14 @@ Respond with ONLY the category name, nothing else."""
 
         try:
             # Check if SDK is available (should never happen since we check in __init__)
-            if not CLAUDE_SDK_AVAILABLE or ClaudeSDKClient is None or ClaudeCodeOptions is None:
+            if not CLAUDE_SDK_AVAILABLE or ClaudeSDKClient is None or ClaudeAgentOptions is None:
                 raise RuntimeError("FATAL: Claude Code SDK not available for classification")
 
             # Use 10-minute timeout for SDK operations (600 seconds)
             async with asyncio.timeout(600):
                 # Use configured model for fast classification with minimal turns
                 async with ClaudeSDKClient(
-                    options=ClaudeCodeOptions(
+                    options=ClaudeAgentOptions(
                         system_prompt="You are a document classifier. Respond with only the category name.",
                         max_turns=1,
                         model=config.knowledge_mining_model,  # Fast, efficient model for classification
@@ -229,7 +229,7 @@ Respond with ONLY the category name, nothing else."""
             prompt = self._build_extraction_prompt(text, title, document_type)
 
             # Check if SDK is available
-            if not CLAUDE_SDK_AVAILABLE or ClaudeSDKClient is None or ClaudeCodeOptions is None:
+            if not CLAUDE_SDK_AVAILABLE or ClaudeSDKClient is None or ClaudeAgentOptions is None:
                 logger.error("Claude Code SDK not available - cannot extract knowledge")
                 raise RuntimeError("Claude Code SDK is required for knowledge extraction")
 
@@ -241,7 +241,7 @@ Respond with ONLY the category name, nothing else."""
             # Use 10-minute timeout for SDK operations (600 seconds)
             async with asyncio.timeout(600):
                 async with ClaudeSDKClient(
-                    options=ClaudeCodeOptions(
+                    options=ClaudeAgentOptions(
                         system_prompt="You are a knowledge extraction expert. Extract structured knowledge from articles. Return ONLY valid JSON with no other text.",
                         max_turns=1,
                         model=config.knowledge_mining_extraction_model,  # More powerful model for extraction

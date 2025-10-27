@@ -10,6 +10,7 @@ from pathlib import Path
 
 import click
 
+from amplifier.ccsdk_toolkit.scenario_base import add_describe_flag
 from amplifier.utils.logger import get_logger
 
 from .audio_extractor import AudioExtractor
@@ -229,9 +230,14 @@ class TranscriptionPipeline:
         return all_success
 
 
+@add_describe_flag(version="1.0", display_name="Transcribe")
 @click.group()
 def cli():
-    """Transcribe videos and manage transcripts."""
+    """Transcribe videos and audio files with AI enhancement.
+
+    Extract audio, generate transcripts, and create summaries with key quotes
+    from videos and audio files.
+    """
     pass
 
 

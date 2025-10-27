@@ -16,14 +16,14 @@ from memory.models import Memory
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Import Claude Code SDK - REQUIRED for memory extraction
+# Import Claude Agent SDK - REQUIRED for memory extraction
 try:
-    from claude_code_sdk import ClaudeCodeOptions
-    from claude_code_sdk import ClaudeSDKClient
+    from claude_agent_sdk import ClaudeAgentOptions
+    from claude_agent_sdk import ClaudeSDKClient
 except ImportError:
     raise RuntimeError(
-        "Claude Code SDK not available. Memory extraction requires Claude Code SDK. "
-        "Install with: pip install claude-code-sdk"
+        "Claude Agent SDK not available. Memory extraction requires Claude Agent SDK. "
+        "Install with: pip install claude-agent-sdk"
     )
 
 # Import extraction configuration
@@ -167,7 +167,7 @@ Context: {json.dumps(context or {})}
         try:
             async with asyncio.timeout(self.config.memory_extraction_timeout):
                 async with ClaudeSDKClient(  # type: ignore
-                    options=ClaudeCodeOptions(  # type: ignore
+                    options=ClaudeAgentOptions(  # type: ignore
                         system_prompt="You extract memories from conversations.",
                         max_turns=1,
                         model=self.config.memory_extraction_model,
@@ -249,10 +249,10 @@ Return ONLY valid JSON."""
             logger.info(f"[EXTRACTION] Setting timeout to {self.config.memory_extraction_timeout} seconds")
             async with asyncio.timeout(self.config.memory_extraction_timeout):
                 logger.info(
-                    f"[EXTRACTION] Creating Claude Code SDK client with model: {self.config.memory_extraction_model}"
+                    f"[EXTRACTION] Creating Claude Agent SDK client with model: {self.config.memory_extraction_model}"
                 )
                 async with ClaudeSDKClient(  # type: ignore
-                    options=ClaudeCodeOptions(  # type: ignore
+                    options=ClaudeAgentOptions(  # type: ignore
                         system_prompt="You are a memory extraction expert. Extract key information from conversations.",
                         max_turns=1,
                         model=self.config.memory_extraction_model,

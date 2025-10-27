@@ -1,15 +1,16 @@
 [project]
-name = "workspace"
+name = "amplifier"
 version = "0.1.0"
-description = "Workspace project"
+description = "AI-powered toolkit for building intelligent applications"
 requires-python = ">=3.11"
 dependencies = [
     "aiohttp>=3.12.15",
     "anthropic>=0.69.0",
     "beautifulsoup4>=4.14.2",
-    "claude-code-sdk>=0.0.20",
-    "click>=8.2.1",
+    "claude-agent-sdk>=0.1.5",
+    "click>=8.0",
     "httpx>=0.28.1",
+    "jinja2>=3.1.5",
     "langchain>=0.2.1",
     "langchain-openai>=0.3.28",
     "markdownify>=1.2.0",
@@ -19,15 +20,27 @@ dependencies = [
     "pydantic-ai>=1.0.10",
     "pydantic-settings>=2.10.1",
     "pydot>=4.0.1",
+    "pymupdf>=1.26.5",
+    "pymupdf4llm>=0.0.27",
+    "pypdf>=6.1.3",
     "python-dotenv>=1.1.1",
     "pyvis>=0.3.2",
-    "pyyaml>=6.0.2",
+    "pyyaml>=6.0",
     "rapidfuzz>=3.13.0",
     "requests>=2.32.4",
     "tiktoken>=0.11.0",
     "tqdm>=4.67.1",
     "yt-dlp>=2025.9.26",
 ]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["amplifier*"]
+exclude = ["scenarios*", "ai_context*", "ai_working*", "exported_transcripts*"]
 
 [tool.uv.workspace]
 # Add all projects in the workspace
@@ -64,6 +77,10 @@ exclude = [
     "dist/**",
     ".data/**",
     "ai_working/**",
+    "scenarios/content_analysis/**",
+    "scenarios/document_analysis_and_sentiment_processing/**",
+    "scenarios/review_analyzer/**",
+    "amplifier-web-ui/backend/generators/**",
 ]
 typeCheckingMode = "basic"
 reportMissingImports = false

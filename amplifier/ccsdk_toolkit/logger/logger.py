@@ -194,3 +194,94 @@ class ToolkitLogger:
                 self.debug("Notifications not available - amplifier.utils.notifications not found")
             except Exception as e:
                 self.debug(f"Failed to send notification: {e}")
+
+    # Structured event methods for rich UI
+
+    def progress(self, current: int, total: int, message: str, **kwargs):
+        """Emit progress event for long-running operations.
+
+        Args:
+            current: Current progress value
+            total: Total progress value
+            message: Progress message
+            **kwargs: Additional metadata
+        """
+        percent = int((current / total) * 100) if total > 0 else 0
+        self.info(
+            message,
+            event_type="progress",
+            progress_current=current,
+            progress_total=total,
+            progress_percent=percent,
+            **kwargs,
+        )
+
+    def file_created(self, path: str, metadata: dict[str, Any] | None = None):
+        """Emit file creation event.
+
+        Args:
+            path: Path to created file
+            metadata: Optional file metadata (size, type, etc.)
+        """
+        self.info(f"File created: {path}", event_type="file.created", file_path=path, file_metadata=metadata or {})
+
+    def file_updated(self, path: str, metadata: dict[str, Any] | None = None):
+        """Emit file update event.
+
+        Args:
+            path: Path to updated file
+            metadata: Optional file metadata
+        """
+        self.info(f"File updated: {path}", event_type="file.updated", file_path=path, file_metadata=metadata or {})
+
+    def interactive_prompt(self, prompt: str, options: list[str] | None = None, prompt_type: str = "text"):
+        """Emit interactive prompt for user input.
+
+        Args:
+            prompt: Prompt text to display
+            options: Optional list of choices
+            prompt_type: Type of input ("text", "choice", "confirmation")
+        """
+        self.info(
+            prompt,
+            event_type="interactive.prompt",
+            prompt_text=prompt,
+            prompt_options=options or [],
+            prompt_type=prompt_type,
+        )
+
+    def stage_transition(self, from_stage: str | None, to_stage: str, estimated_duration: int | None = None):
+        """Emit stage transition event.
+
+        Args:
+            from_stage: Previous stage name (None if starting)
+            to_stage: Next stage name
+            estimated_duration: Estimated duration in seconds
+        """
+        msg = f"Transitioning to: {to_stage}"
+        if from_stage:
+            msg = f"Transitioning from {from_stage} to {to_stage}"
+
+        self.info(
+            msg,
+            event_type="stage.transition",
+            from_stage=from_stage,
+            to_stage=to_stage,
+            estimated_duration=estimated_duration,
+        )
+
+    def preview_available(self, preview_type: str, preview_data: Any, **kwargs):
+        """Emit preview available event for UI to display.
+
+        Args:
+            preview_type: Type of preview ("text", "image", "json", "markdown")
+            preview_data: Preview data (could be URL, text, or structured data)
+            **kwargs: Additional metadata
+        """
+        self.info(
+            f"Preview available: {preview_type}",
+            event_type="preview.available",
+            preview_type=preview_type,
+            preview_data=preview_data,
+            **kwargs,
+        )

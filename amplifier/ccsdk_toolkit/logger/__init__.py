@@ -109,14 +109,14 @@ class ToolkitLogger:
         """Format log message based on configured format"""
         if self.format == LogFormat.JSON:
             return json.dumps(asdict(event), ensure_ascii=False)
-        # Plain or rich format
+        # Plain or rich format - show clean messages without metadata
         msg = event.message
         if event.session_id:
             msg = f"[{event.session_id}] {msg}"
         if event.turn_number:
             msg = f"[Turn {event.turn_number}] {msg}"
-        if event.context:
-            msg = f"{msg} | {json.dumps(event.context)}"
+        # Note: In plain/rich mode, we don't append context metadata
+        # Context is only used in JSON mode for Web UI event parsing
         return msg
 
     def _log(self, level: str, message: str, context: dict[str, Any] | None = None) -> None:
@@ -253,6 +253,81 @@ class ToolkitLogger:
                 self.debug("Notifications not available - amplifier.utils.notifications not found")
             except Exception as e:
                 self.debug(f"Failed to send notification: {e}")
+
+    # Structured event methods for rich UI
+
+    def progress(self, current: int, total: int, message: str, **context: Any) -> None:
+        """Emit progress event for long-running operations."""
+        percent = int((current / total) * 100) if total > 0 else 0
+        self.info(
+            message,
+            event_type="progress",
+            progress_current=current,
+            progress_total=total,
+            progress_percent=percent,
+            **context,
+        )
+
+    def file_created(self, path: str, metadata: dict[str, Any] | None = None) -> None:
+        """Emit file creation event."""
+        self.info(f"File created: {path}", event_type="file.created", file_path=path, file_metadata=metadata or {})
+
+    def file_updated(self, path: str, metadata: dict[str, Any] | None = None) -> None:
+        """Emit file update event."""
+        self.info(f"File updated: {path}", event_type="file.updated", file_path=path, file_metadata=metadata or {})
+
+    def interactive_prompt(self, prompt: str, options: list[str] | None = None, prompt_type: str = "text") -> None:
+        """Emit interactive prompt for user input."""
+        self.info(
+            prompt,
+            event_type="interactive.prompt",
+            prompt_text=prompt,
+            prompt_options=options or [],
+            prompt_type=prompt_type,
+        )
+
+    def stage_transition(self, from_stage: str | None, to_stage: str, estimated_duration: int | None = None) -> None:
+        """Emit stage transition event."""
+        msg = f"Transitioning to: {to_stage}"
+        if from_stage:
+            msg = f"Transitioning from {from_stage} to {to_stage}"
+
+        self.info(
+            msg,
+            event_type="stage.transition",
+            from_stage=from_stage,
+            to_stage=to_stage,
+            estimated_duration=estimated_duration,
+        )
+
+    def preview_available(self, preview_type: str, preview_data: Any, **context: Any) -> None:
+        """Emit preview available event for UI to display."""
+        self.info(
+            f"Preview available: {preview_type}",
+            event_type="preview.available",
+            preview_type=preview_type,
+            preview_data=preview_data,
+            **context,
+        )
+
+    def validation_failed(
+        self,
+        stage: str,
+        errors: list[str],
+        warnings: list[str] | None = None,
+        iteration: int = 1,
+        retry_action: str = "retrying",
+    ) -> None:
+        """Emit validation failure event for Web UI."""
+        self.info(
+            f"Validation failed: {stage}",
+            event_type="validation.failed",
+            stage=stage,
+            errors=errors,
+            warnings=warnings or [],
+            iteration=iteration,
+            retry_action=retry_action,
+        )
 
 
 def create_logger(

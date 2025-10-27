@@ -15,15 +15,15 @@ TimeoutError = asyncio.TimeoutError
 
 logger = logging.getLogger(__name__)
 
-# Try to import Claude Code SDK - it may not be available outside Claude Code environment
+# Try to import Claude Agent SDK - it may not be available outside Claude Code environment
 try:
-    from claude_code_sdk import ClaudeCodeOptions
-    from claude_code_sdk import ClaudeSDKClient
+    from claude_agent_sdk import ClaudeAgentOptions
+    from claude_agent_sdk import ClaudeSDKClient
 
     CLAUDE_SDK_AVAILABLE = True
 except ImportError:
     CLAUDE_SDK_AVAILABLE = False
-    logger.warning("Claude Code SDK not available - extraction will return empty results")
+    logger.warning("Claude Agent SDK not available - extraction will return empty results")
 
 
 class KnowledgeSynthesizer:
@@ -156,7 +156,7 @@ Text to analyze:
         response = ""
 
         async with ClaudeSDKClient(  # type: ignore
-            options=ClaudeCodeOptions(  # type: ignore
+            options=ClaudeAgentOptions(  # type: ignore
                 system_prompt="You are a knowledge extraction system. Extract structured information and return ONLY valid JSON.",
                 max_turns=1,
             )

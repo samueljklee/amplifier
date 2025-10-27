@@ -6,12 +6,15 @@ Coordinates the blog writing pipeline with state management.
 """
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 
 import click
 
-from amplifier.utils.logger import get_logger
+from amplifier.ccsdk_toolkit import ToolkitLogger
+from amplifier.ccsdk_toolkit.logger import LogFormat
+from amplifier.ccsdk_toolkit.scenario_base import add_describe_flag
 
 from .blog_writer import BlogWriter
 from .source_reviewer import SourceReviewer
@@ -22,7 +25,9 @@ from .style_extractor import StyleExtractor
 from .style_reviewer import StyleReviewer
 from .user_feedback import UserFeedbackHandler
 
-logger = get_logger(__name__)
+# Use JSON format for web UI, plain for CLI
+log_format = LogFormat.JSON if os.getenv("AMPLIFIER_WEB_UI") else LogFormat.PLAIN
+logger = ToolkitLogger(name="blog_writer", format=log_format)
 
 
 class BlogPostPipeline:
@@ -144,7 +149,8 @@ class BlogPostPipeline:
 
     async def _extract_style(self) -> None:
         """Extract author's writing style."""
-        logger.info("\n📝 Extracting author's style...")
+        logger.stage_transition(None, "extract_style", estimated_duration=30)
+        logger.info("📝 Extracting author's style...")
         self.state.update_stage("extracting_style")
 
         assert self.writings_dir is not None, "writings_dir must be set before extracting style"
@@ -152,9 +158,12 @@ class BlogPostPipeline:
         self.state.set_style_profile(style_profile)
         self.state.update_stage("style_extracted")
 
+        logger.info(f"✓ Style extracted from {len(style_profile.get('sample_writings', []))} writings")
+
     async def _write_initial_draft(self) -> None:
         """Write initial blog draft."""
-        logger.info("\n✍️ Writing initial blog draft...")
+        logger.stage_transition("extract_style", "write_draft", estimated_duration=120)
+        logger.info("✍️ Writing initial blog draft...")
         self.state.update_stage("writing_draft")
 
         draft = await self.blog_writer.write_blog(
@@ -163,16 +172,29 @@ class BlogPostPipeline:
             additional_instructions=self.additional_instructions,
         )
 
-        # Debug: Log draft info
-        logger.debug(f"Generated draft length: {len(draft)} chars")
-        logger.debug(f"Draft preview: {draft[:200]}...")
+        # Save draft to file
+        draft_file = self.state.session_dir / f"draft_iter_{self.state.state.iteration}.md"
+        draft_file.write_text(draft)
 
         self.state.update_draft(draft)
         self.state.update_stage("draft_written")
 
+        # Emit preview event
+        logger.preview_available(
+            preview_type="markdown",
+            preview_data=str(draft_file),
+            word_count=len(draft.split()),
+            iteration=self.state.state.iteration,
+        )
+        logger.file_created(
+            str(draft_file),
+            metadata={"type": "draft", "iteration": self.state.state.iteration, "word_count": len(draft.split())},
+        )
+
     async def _review_sources(self) -> None:
         """Review draft for source accuracy."""
-        logger.info("\n🔍 Reviewing source accuracy...")
+        logger.stage_transition("write_draft", "review_sources", estimated_duration=60)
+        logger.info("🔍 Reviewing source accuracy...")
 
         review = await self.source_reviewer.review_sources(
             self.state.state.current_draft,
@@ -184,9 +206,20 @@ class BlogPostPipeline:
         self.state.set_source_review(review)
         self.state.add_iteration_history({"type": "source_review", "review": review})
 
+        # Emit review results
+        needs_revision = review.get("needs_revision", False)
+        issue_count = len(review.get("issues", []))
+        logger.info(
+            f"{'⚠️' if needs_revision else '✓'} Source review: {issue_count} issues found",
+            review_type="source",
+            needs_revision=needs_revision,
+            issue_count=issue_count,
+        )
+
     async def _review_style(self) -> None:
         """Review draft for style consistency."""
-        logger.info("\n🎨 Reviewing style consistency...")
+        logger.stage_transition("review_sources", "review_style", estimated_duration=60)
+        logger.info("🎨 Reviewing style consistency...")
 
         review = await self.style_reviewer.review_style(
             self.state.state.current_draft,
@@ -195,6 +228,16 @@ class BlogPostPipeline:
 
         self.state.set_style_review(review)
         self.state.add_iteration_history({"type": "style_review", "review": review})
+
+        # Emit review results
+        needs_revision = review.get("needs_revision", False)
+        issue_count = len(review.get("issues", []))
+        logger.info(
+            f"{'⚠️' if needs_revision else '✓'} Style review: {issue_count} issues found",
+            review_type="style",
+            needs_revision=needs_revision,
+            issue_count=issue_count,
+        )
 
     async def _revise_draft(self) -> None:
         """Revise draft based on reviews."""
@@ -220,10 +263,19 @@ class BlogPostPipeline:
 
     async def _get_user_feedback(self) -> dict:
         """Get user feedback on current draft."""
-        logger.info("\n👤 Getting user feedback...")
+        logger.stage_transition("review_style", "user_feedback", estimated_duration=None)
+        logger.info("👤 Waiting for user feedback...")
 
         # Get the path to the saved draft file in session directory
-        draft_file_path = self.state.session_dir / f"draft_iter_{self.state.state.iteration}.md"
+        # Note: increment_iteration() was called before this, so we need the previous iteration
+        draft_file_path = self.state.session_dir / f"draft_iter_{self.state.state.iteration - 1}.md"
+
+        # Emit interactive prompt for web UI
+        logger.interactive_prompt(
+            prompt=f"Review draft iteration {self.state.state.iteration}",
+            options=["approve", "revise", "skip"],
+            prompt_type="approval",
+        )
 
         # Run in thread to handle blocking input
         loop = asyncio.get_event_loop()
@@ -238,6 +290,7 @@ class BlogPostPipeline:
         self.state.add_user_feedback(feedback)
         self.state.add_iteration_history({"type": "user_feedback", "feedback": feedback})
 
+        logger.info(f"User decision: {feedback.get('action', 'unknown')}")
         return feedback
 
     async def _apply_user_feedback(self, parsed_feedback: dict, increment_after: bool = False) -> None:
@@ -275,8 +328,23 @@ class BlogPostPipeline:
         self.state.update_draft(draft)
         self.state.update_stage("revision_complete")
 
+        # Emit file created event for web UI (same as in _write_initial_draft)
+        draft_file = self.state.session_dir / f"draft_iter_{self.state.state.iteration}.md"
+        logger.preview_available(
+            preview_type="markdown",
+            preview_data=str(draft_file),
+            word_count=len(draft.split()),
+            iteration=self.state.state.iteration,
+        )
+        logger.file_created(
+            str(draft_file),
+            metadata={"type": "draft", "iteration": self.state.state.iteration, "word_count": len(draft.split())},
+        )
+
     async def _save_output(self) -> None:
         """Save final blog post to output file with slug-based filename."""
+        logger.stage_transition("user_feedback", "save_output", estimated_duration=5)
+
         # Extract title from the blog post
         title = extract_title_from_markdown(self.state.state.current_draft)
 
@@ -298,6 +366,23 @@ class BlogPostPipeline:
         try:
             output_path.write_text(self.state.state.current_draft)
             logger.info(f"✅ Blog post saved to: {output_path}")
+
+            # Emit events for web UI
+            logger.preview_available(
+                preview_type="markdown",
+                preview_data=str(output_path),
+                word_count=len(self.state.state.current_draft.split()),
+                iteration=self.state.state.iteration,
+            )
+            logger.file_created(
+                str(output_path),
+                metadata={
+                    "type": "final",
+                    "iteration": self.state.state.iteration,
+                    "word_count": len(self.state.state.current_draft.split()),
+                },
+            )
+
             # Update state with actual output path
             self.state.state.output_path = str(output_path)
             self.state.save()
@@ -306,6 +391,7 @@ class BlogPostPipeline:
 
 
 # CLI Interface
+@add_describe_flag(version="1.0", display_name="Blog Post Writer")
 @click.command()
 @click.option(
     "--idea",

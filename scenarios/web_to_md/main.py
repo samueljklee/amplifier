@@ -24,7 +24,12 @@ try:
     from amplifier.ccsdk_toolkit import ToolkitLogger  # type: ignore
     from amplifier.config.paths import paths  # type: ignore
 
-    logger = ToolkitLogger(name="web_to_md")
+    # Detect if running from web UI (via make command has specific env)
+    # Use JSON for web UI, text for direct CLI usage
+    import os
+    from amplifier.ccsdk_toolkit.logger import LogFormat
+    log_format = LogFormat.JSON if os.getenv("AMPLIFIER_WEB_UI") else LogFormat.PLAIN
+    logger = ToolkitLogger(name="web_to_md", format=log_format)
     AMPLIFIER_AVAILABLE = True
 except ImportError:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -45,20 +50,24 @@ def process_url(url: str, output_dir: Path, state: WebToMdState) -> bool:
         True if successful, False otherwise
     """
     try:
-        logger.info(f"\n{'=' * 60}")
         logger.info(f"Processing: {url}")
-        logger.info(f"{'=' * 60}")
 
         # Step 1: Fetch HTML and metadata
-        logger.info("Step 1/7: Fetching page...")
+        if hasattr(logger, 'stage_transition'):
+            logger.stage_transition(None, "fetch", estimated_duration=5)
+        logger.info("Fetching page...")
         html, metadata = fetch_page(url)
 
         # Step 2: Convert to markdown
-        logger.info("Step 2/7: Converting to markdown...")
+        if hasattr(logger, 'stage_transition'):
+            logger.stage_transition("fetch", "convert", estimated_duration=2)
+        logger.info("Converting to markdown...")
         markdown = html_to_markdown(html, url)
 
         # Step 2.5: Validate content (check for paywalls/auth walls)
-        logger.info("Step 2.5/7: Validating content...")
+        if hasattr(logger, 'stage_transition'):
+            logger.stage_transition("convert", "validate", estimated_duration=1)
+        logger.info("Validating content...")
         validation_result = validate_content(html, markdown, url)
         if not validation_result.is_valid:
             logger.error(f"✗ Content validation failed: {validation_result.reason}")
@@ -68,9 +77,16 @@ def process_url(url: str, output_dir: Path, state: WebToMdState) -> bool:
             return False
 
         # Step 3: Process images
-        logger.info("Step 3/7: Processing images...")
+        if hasattr(logger, 'stage_transition'):
+            logger.stage_transition("validate", "images", estimated_duration=10)
+        logger.info("Processing images...")
         domain_dir = get_domain_dir(url, output_dir)
         image_mappings = process_images(html, url, domain_dir)
+
+        # Emit progress for image processing
+        if hasattr(logger, 'progress') and image_mappings:
+            for i, (img_url, img_path) in enumerate(image_mappings, 1):
+                logger.progress(i, len(image_mappings), f"Downloaded image {i}/{len(image_mappings)}")
 
         # Step 4: Enhance markdown with AI
         logger.info("Step 4/7: Enhancing markdown...")
@@ -89,11 +105,29 @@ def process_url(url: str, output_dir: Path, state: WebToMdState) -> bool:
             logger.info("Step 5/7: No images to update")
 
         # Step 6: Save the page
-        logger.info("Step 6/7: Saving page...")
+        if hasattr(logger, 'stage_transition'):
+            logger.stage_transition("images", "save", estimated_duration=1)
+        logger.info("Saving page...")
         saved_path = save_page(url, enhanced_markdown, output_dir)
 
+        # Emit file created event
+        if hasattr(logger, 'file_created'):
+            logger.file_created(
+                path=str(saved_path),
+                metadata={
+                    "url": url,
+                    "title": metadata.get("title", "Untitled"),
+                    "word_count": len(enhanced_markdown.split()),
+                    "image_count": len(image_mappings) if image_mappings else 0
+                }
+            )
+
+        # Mark save stage as complete
+        if hasattr(logger, 'stage_transition'):
+            logger.stage_transition("save", None, estimated_duration=0)
+
         # Step 7: Mark as processed
-        logger.info("Step 7/7: Updating state...")
+        logger.info("Updating state...")
         state.mark_processed(url)
 
         logger.info(f"✓ Successfully saved to: {saved_path}")
