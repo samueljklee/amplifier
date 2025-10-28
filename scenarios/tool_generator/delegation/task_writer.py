@@ -269,6 +269,136 @@ WHY THIS MATTERS:
 - Prevents type errors and runtime crashes
 - pyright validation will fail without type guard
 
+INTERACTIVE PROMPTS (CRITICAL FOR WEB UI COMPATIBILITY):
+
+When your tool needs user input during execution, ALWAYS emit interactive.prompt event BEFORE calling input().
+This allows the tool to work in both CLI (terminal) and Web UI (browser) environments.
+
+✅ CORRECT - Web UI compatible (async context):
+```python
+import asyncio
+from amplifier.utils.logger import get_logger
+
+logger = get_logger(__name__)  # Auto-detects AMPLIFIER_WEB_UI env var
+
+# 1. Emit event for Web UI (MUST come before input())
+logger.interactive_prompt(
+    prompt="Please confirm the action",
+    options=["yes", "no"],  # Optional: for approval/choice/multi-choice types
+    prompt_type="approval"  # Type of prompt (see below)
+)
+
+# 2. Get input using executor (non-blocking)
+loop = asyncio.get_event_loop()
+response = await loop.run_in_executor(None, input, "Confirm: ")
+response = response.strip().lower()
+
+# 3. Handle response
+if response == "yes":
+    # proceed...
+```
+
+✅ CORRECT - Conditional follow-up prompts:
+```python
+# First prompt: approval
+logger.interactive_prompt(
+    prompt="Review output?",
+    options=["approve", "revise", "skip"],
+    prompt_type="approval"
+)
+choice = await loop.run_in_executor(None, input, "Choice: ")
+
+# If revise chosen, emit SECOND prompt for feedback
+if choice.strip().lower() == "revise":
+    logger.interactive_prompt(
+        prompt="What changes would you like?",
+        prompt_type="text"
+    )
+    feedback = await loop.run_in_executor(None, input, "Feedback: ")
+    # Process feedback...
+```
+
+❌ WRONG - Breaks Web UI (tool will hang forever):
+```python
+# Web UI has no way to detect this prompt!
+response = input("Confirm (yes/no): ").strip()  # ❌ Will hang in Web UI
+```
+
+PROMPT TYPES:
+- "text": Multi-line text input (textarea) - Use for feedback, descriptions, any free text
+- "approval": 2-3 button choices - Use for approve/revise/skip, yes/no, confirm/cancel
+- "choice": Radio selection from 3+ options - Use for single selection
+- "multi-choice": Checkbox selection - Use for multiple selections (comma-separated input)
+
+IMPORTANT - CONDITIONAL PROMPTS:
+If a user's choice requires follow-up input (e.g., "revise" needs feedback text),
+you MUST emit a SECOND interactive_prompt for the follow-up question. Don't try to
+handle multiple inputs with one prompt event.
+
+Example: research_assistant approval flow
+1. First prompt: "approve" / "revise" / "skip" (approval type)
+2. IF "revise" chosen → Second prompt: "What changes?" (text type)
+
+HOW IT WORKS:
+- CLI: logger.interactive_prompt() just logs the prompt, input() works normally
+- Web UI: Detects event via JSON logging, shows InteractivePrompt component, sends response to stdin
+- get_logger() automatically uses JSON format when AMPLIFIER_WEB_UI=true env var is set
+
+WHEN TO USE:
+Use this pattern ANY time your tool calls input() for user interaction:
+- Approval/confirmation prompts
+- Parameter clarification
+- Review/feedback loops
+- Interactive conversations
+- Iterative refinement workflows
+
+KEYBOARD SHORTCUTS IN WEB UI:
+- Text prompts: Enter = submit, Shift+Enter = newline
+- Approval/choice: Click buttons
+- Multi-choice: Select checkboxes, click Submit
+
+SEE EXAMPLES:
+- research_assistant/main.py:298 - Approval with conditional text prompt
+- research_assistant/clarifier/core.py:136 - Sequential text prompts
+- blog_writer/main.py - Approval prompt patterns
+
+MODULE TESTS (REQUIRED):
+
+Generate tests/test_modules.py that tests EACH module with realistic inputs:
+
+✅ CORRECT test structure:
+```python
+\"\"\"Module-level tests for {spec.tool_name}.\"\"\"
+import pytest
+from pathlib import Path
+from {spec.tool_name}.extractor import extract_data  # Import public API
+
+def test_extractor_valid_input():
+    \"\"\"Test extractor with valid input.\"\"\"
+    result = extract_data("test input")
+    assert result is not None
+    assert isinstance(result, dict)  # Or expected type
+    assert "required_field" in result
+
+def test_extractor_invalid_input():
+    \"\"\"Test extractor handles invalid input gracefully.\"\"\"
+    result = extract_data(None)
+    assert result is None  # Should handle gracefully, not crash
+
+def test_extractor_empty_input():
+    \"\"\"Test extractor handles empty input.\"\"\"
+    result = extract_data("")
+    assert result is not None  # Or expected behavior
+```
+
+CRITICAL TEST REQUIREMENTS:
+1. Test EVERY module (extractor, analyzer, formatter, etc.)
+2. Use realistic inputs (not just "test")
+3. Test both valid AND invalid inputs
+4. Test edge cases (empty, None, malformed)
+5. For LLM modules: Mock responses or use small test prompts
+6. Add pytest to dev dependencies in pyproject.toml
+
 VALIDATION REQUIREMENTS:
 {self._format_validation_rules(spec.validation_rules)}
 
@@ -279,16 +409,18 @@ Study these examples for patterns:
 WORKFLOW:
 1. Generate tool structure (main.py at root, modules if needed, pyproject.toml)
 2. Implement core functionality
-3. Run validation loop:
+3. Generate tests/test_modules.py with module tests
+4. Run validation loop:
    a. Install dependencies: cd <tool> && uv sync
    b. Test imports: python -c 'import <module>'
    c. Test CLI: python -m <tool> --help
-   d. Check formatting: uv run ruff format --check .
-   e. Check linting: uv run ruff check .
-   f. Check types: uv run pyright .
-   g. If errors, FIX THEM and retry
-4. Iterate until all validations pass
-5. Write result.json when complete
+   d. Run module tests: uv run pytest tests/test_modules.py
+   e. Check formatting: uv run ruff format --check .
+   f. Check linting: uv run ruff check .
+   g. Check types: uv run pyright .
+   h. If errors, FIX THEM and retry
+5. Iterate until all validations pass (including tests)
+6. Write result.json when complete
 
 Use sub-agents as needed:
 - zen-architect: Design decisions

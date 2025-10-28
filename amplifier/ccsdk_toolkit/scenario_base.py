@@ -38,11 +38,22 @@ def get_parameter_schema(
     params = []
     for param in command.params:
         if isinstance(param, click.Option) and param.name != "describe_parameters":
-            # Convert Path objects to strings for JSON serialization
+            # Convert default values to JSON-serializable types
             default_value = param.default
-            if default_value is not None and hasattr(default_value, "__fspath__"):
+
+            # Handle Click's internal Sentinel objects (used when no default is specified)
+            if default_value is not None and type(default_value).__name__ == "Sentinel":
+                default_value = None
+            # Convert Path objects to strings for JSON serialization
+            elif default_value is not None and hasattr(default_value, "__fspath__"):
                 # This is a Path-like object, convert to string
                 default_value = str(default_value)
+            # Test if value is JSON serializable, otherwise convert to None
+            elif default_value is not None:
+                try:
+                    json.dumps(default_value)
+                except (TypeError, ValueError):
+                    default_value = None
 
             param_def = {
                 "name": param.name,

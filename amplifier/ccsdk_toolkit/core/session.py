@@ -83,6 +83,18 @@ class ClaudeSession:
             if self.options.cwd is not None:
                 sdk_options["cwd"] = self.options.cwd
 
+                # Auto-enable project settings if cwd is set (loads .claude/ agents/commands/settings)
+                if self.options.setting_sources is not None:
+                    sdk_options["setting_sources"] = self.options.setting_sources
+                else:
+                    # Default to loading project settings when cwd is provided
+                    # This makes .claude/agents/ and .claude/commands/ available
+                    sdk_options["setting_sources"] = ["project"]
+
+            # Pass max_buffer_size if specified (for long sessions with 100+ turns)
+            if self.options.max_buffer_size is not None:
+                sdk_options["max_buffer_size"] = self.options.max_buffer_size
+
             self.client = ClaudeSDKClient(options=ClaudeAgentOptions(**sdk_options))
             await self.client.__aenter__()
             return self
@@ -129,36 +141,104 @@ class ClaudeSession:
                 metadata: dict[str, Any] = {"attempt": attempt + 1}
                 all_messages = []  # Track all messages for debugging
 
-                async for message in self.client.receive_response():
-                    all_messages.append(message)  # Store for debugging
+                try:
+                    async for message in self.client.receive_response():
+                        all_messages.append(message)  # Store for debugging
 
-                    # Extract text content from ContentBlock messages
-                    if hasattr(message, "content"):
-                        content = getattr(message, "content", [])
-                        if isinstance(content, list):
-                            for block in content:
-                                if hasattr(block, "text"):
-                                    text = getattr(block, "text", "")
-                                    if text:
-                                        response_text += text
+                        # Detect agent delegation via Task tool usage
+                        if hasattr(message, "content"):
+                            content = getattr(message, "content", [])
+                            if isinstance(content, list):
+                                for block in content:
+                                    # Check for ToolUseBlock with Task tool (agent delegation)
+                                    if (
+                                        hasattr(block, "name")
+                                        and hasattr(block, "input")
+                                        and getattr(block, "name", None) == "Task"
+                                    ):
+                                        # Agent delegation detected!
+                                        tool_input = getattr(block, "input", {})
+                                        subagent_type = tool_input.get("subagent_type", "unknown")
+                                        task_description = tool_input.get("description", "")
+                                        tool_use_id = getattr(block, "id", "")
 
-                                        # Stream output if enabled
-                                        should_stream = stream if stream is not None else self.options.stream_output
-                                        if should_stream:
-                                            print(text, end="", flush=True)
+                                        # Track in metadata
+                                        if "agents_used" not in metadata:
+                                            metadata["agents_used"] = []
 
-                                        # Call progress callback if provided
+                                        agent_info = {
+                                            "subagent_type": subagent_type,
+                                            "description": task_description,
+                                            "tool_use_id": tool_use_id,
+                                        }
+                                        metadata["agents_used"].append(agent_info)
+
+                                        # Optional: Notify via progress callback
                                         if self.options.progress_callback:
-                                            self.options.progress_callback(text)
+                                            self.options.progress_callback(
+                                                f"\n🤖 Delegating to {subagent_type}: {task_description}\n"
+                                            )
 
-                    # Collect metadata from ResultMessage if available
-                    if hasattr(message, "__class__") and message.__class__.__name__ == "ResultMessage":
-                        if hasattr(message, "session_id"):
-                            metadata["session_id"] = getattr(message, "session_id", None)
-                        if hasattr(message, "total_cost_usd"):
-                            metadata["total_cost_usd"] = getattr(message, "total_cost_usd", 0.0)
-                        if hasattr(message, "duration_ms"):
-                            metadata["duration_ms"] = getattr(message, "duration_ms", 0)
+                        # Extract text content from ContentBlock messages
+                        if hasattr(message, "content"):
+                            content = getattr(message, "content", [])
+                            if isinstance(content, list):
+                                for block in content:
+                                    if hasattr(block, "text"):
+                                        text = getattr(block, "text", "")
+                                        if text:
+                                            response_text += text
+
+                                            # Stream output if enabled
+                                            should_stream = stream if stream is not None else self.options.stream_output
+                                            if should_stream:
+                                                print(text, end="", flush=True)
+
+                                            # Call progress callback if provided
+                                            if self.options.progress_callback:
+                                                self.options.progress_callback(text)
+
+                        # Collect metadata from ResultMessage if available
+                        if hasattr(message, "__class__") and message.__class__.__name__ == "ResultMessage":
+                            if hasattr(message, "session_id"):
+                                metadata["session_id"] = getattr(message, "session_id", None)
+                            if hasattr(message, "total_cost_usd"):
+                                metadata["total_cost_usd"] = getattr(message, "total_cost_usd", 0.0)
+                            if hasattr(message, "duration_ms"):
+                                metadata["duration_ms"] = getattr(message, "duration_ms", 0)
+
+                except Exception as sdk_error:
+                    # Catch SDK internal errors like "No assistant message found"
+                    error_msg = str(sdk_error)
+                    if "No assistant message found" in error_msg:
+                        # This typically means max_turns was hit or session ended unexpectedly
+                        # Return what we collected so far
+                        metadata["sdk_error"] = error_msg
+                        metadata["hit_sdk_limit"] = True
+
+                        if response_text:
+                            # Got some text before error
+                            return SessionResponse(
+                                content=response_text, metadata=metadata, error=f"Session ended: {error_msg}"
+                            )
+                        if metadata.get("message_count", 0) >= self.options.max_turns:
+                            # Hit max_turns without final message
+                            return SessionResponse(
+                                content="[Session completed: Hit max_turns limit without final assistant message]",
+                                metadata=metadata,
+                                error="Hit max_turns without final message",
+                            )
+                        if metadata.get("agents_used"):
+                            # Work was delegated to subagents
+                            return SessionResponse(
+                                content="[Session completed: Work delegated to subagents]",
+                                metadata=metadata,
+                                error=f"SDK error after agent delegation: {error_msg}",
+                            )
+                        # True error - no progress made
+                        raise
+                    # Other SDK error - re-raise
+                    raise
 
                 # Store message count for debugging
                 metadata["message_count"] = len(all_messages)

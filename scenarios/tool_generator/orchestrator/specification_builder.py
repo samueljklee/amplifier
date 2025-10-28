@@ -121,9 +121,19 @@ Return JSON with this structure:
 
 Return ONLY the JSON object, no other text."""
 
+        # Determine repo root for agent access
+        repo_root = self.scenarios_dir.parent
+
         options = SessionOptions(
             system_prompt="You are an expert at analyzing tool requirements and extracting structured data.",
             retry_attempts=3,
+            cwd=str(repo_root),  # Enable access to .claude/agents/
+            allowed_tools=[
+                "Task",
+                "Read",
+                "Grep",
+                "Glob",
+            ],  # Allow delegation to specialized agents if needed
         )
 
         try:

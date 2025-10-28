@@ -73,6 +73,8 @@ class ToolkitLogger:
         self.logger = logging.getLogger(name)
         self.logger.setLevel(getattr(logging, level.value))
         self.logger.handlers.clear()
+        # Prevent propagation to root logger to avoid duplicate logs
+        self.logger.propagate = False
 
         # Add appropriate handler based on format
         if format == LogFormat.RICH:

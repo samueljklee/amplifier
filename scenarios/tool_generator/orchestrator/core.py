@@ -15,6 +15,7 @@ from ..models.generation import ValidationResult
 from ..models.specification import ToolSpec
 from ..validation.amplifier_validator import AmplifierPatternValidator
 from ..validation.dependency_validator import DependencyValidator
+from ..validation.module_test_validator import ModuleTestValidator
 from ..validation.pattern_validator import PatternValidator
 from ..validation.runtime_validator import RuntimeValidator
 from ..validation.static_validator import StaticValidator
@@ -285,22 +286,52 @@ TASK SPECIFICATION:
 {task_content}
 
 ═══════════════════════════════════════════════════════════════════════════════
-STEP 1: QUICK STUDY (30 seconds - SKIM ONLY, don't read entire files)
+STEP 1: STUDY REFERENCE PATTERNS THOROUGHLY (5-10 Read calls maximum)
 ═══════════════════════════════════════════════════════════════════════════════
 
-QUICKLY skim these key patterns from references/blog_writer/:
+⚠️ CRITICAL: Study blog_writer ONCE thoroughly at the start. DO NOT return later!
 
-1. main.py - Look for:
-   - @add_describe_flag decorator
+Study these patterns deeply from references/blog_writer/:
+
+1. **main.py** - Understand completely:
+   - @add_describe_flag decorator usage
    - @click.option patterns (NEVER @click.argument)
-   - String defaults only
+   - String defaults only (never Path() objects)
+   - How modules are imported and orchestrated
+   - The overall flow
 
-2. core.py - Look for:
-   - ClaudeSession import and usage
-   - async with pattern
+2. **state.py** - Understand the StateManager pattern:
+   - Session directory structure: .data/{{tool_name}}/sessions/{{timestamp}}_{{guid}}/
+   - How state is saved/loaded with resume capability
+   - Defensive file I/O imports:
+     ```python
+     from amplifier.ccsdk_toolkit.defensive.file_io import read_json_with_retry
+     from amplifier.ccsdk_toolkit.defensive.file_io import write_json_with_retry
+     ```
 
-DO NOT read entire files - just note the import statements and decorator patterns.
-SPEND NO MORE THAN 2-3 Read tool calls here. Then IMMEDIATELY start creating files.
+3. **Any module's core.py** - Understand the LLM integration pattern:
+   ```python
+   from amplifier.ccsdk_toolkit import ClaudeSession, SessionOptions
+
+   async def some_method(self):
+       options = SessionOptions(
+           system_prompt="...",
+           model="claude-sonnet-4-5-20250929"  # Use latest model!
+       )
+       async with ClaudeSession(options) as claude:
+           response = await claude.query("...")
+           return response.content
+   ```
+
+4. **Module organization** - Understand the structure:
+   - Each module's `__init__.py` exports main class
+   - Each module's `core.py` contains implementation
+   - How modules interact with state
+
+SPEND 5-10 Read tool calls studying these patterns deeply.
+Understand HOW and WHY these patterns work, not just copying syntax.
+
+⚠️ After this study phase, DO NOT return to blog_writer - you should have all patterns!
 
 ═══════════════════════════════════════════════════════════════════════════════
 STEP 1.5: DESIGN YOUR MODULES (Modular Design Philosophy)
@@ -424,7 +455,10 @@ Create these files following the canonical pattern:
 
    class Extractor:
        async def extract(self, input_data):
-           options = SessionOptions(system_prompt="Extract data")
+           options = SessionOptions(
+               system_prompt="Extract data",
+               model="claude-sonnet-4-5-20250929"  # CRITICAL: Use latest model (NOT deprecated claude-3-5-sonnet-20241022)
+           )
            async with ClaudeSession(options) as claude:
                response = await claude.query(f"Extract: {{input_data}}")
                return response.content
@@ -461,23 +495,54 @@ Create these files following the canonical pattern:
 - Perfect alignment with "bricks and studs" philosophy
 
 ═══════════════════════════════════════════════════════════════════════════════
-STEP 3: VALIDATION LOOP
+STEP 3: VALIDATE AND FIX (Smart retry strategy)
 ═══════════════════════════════════════════════════════════════════════════════
 
-After creating files, validate and fix:
+After creating ALL files, run validation ONCE:
 
 1. cd {spec.tool_name} && uv sync
 2. python -c "import {spec.tool_name}"
 3. python -m {spec.tool_name} --help
-4. uv run ruff format --check .
+4. uv run ruff format .  # Auto-fixes formatting
 5. uv run ruff check .
-6. uv run pyright .
 
-If ANY validation fails:
-- Read the error carefully
-- Fix the specific issue with Edit tool
-- Re-run validation
-- Repeat until ALL pass
+**If validation PASSES:** ✅ Done! Report success.
+
+**If validation FAILS:** Try to fix, with smart retry limits based on complexity:
+
+**Retry budget based on tool complexity:**
+- Simple tools (1-2 modules): Allow up to 3 fix attempts
+- Medium tools (3-5 modules): Allow up to 5 fix attempts
+- Complex tools (6-9 modules): Allow up to 8 fix attempts
+
+**Fix strategy (for each attempt):**
+1. **Quick fixes first** - Simple errors (typos, wrong import names, missing decorators)
+   - Fix with Edit tool
+   - Re-run specific failing validation
+
+2. **Pattern verification** - If error suggests pattern mismatch
+   - Quickly check blog_writer for correct pattern (1 Read max)
+   - Fix with Edit tool
+   - Re-run validation
+
+3. **Module-specific issues** - If error in specific module
+   - Focus on that module only
+   - Fix and re-validate
+
+**When to STOP trying:**
+- After reaching your retry budget (3, 5, or 8 attempts depending on complexity)
+- If same error repeats 3 times (indicates deeper design issue)
+- If you're unsure what's wrong (better to let orchestrator retry with feedback)
+
+**If validation still fails after all attempts:**
+❌ Report the errors clearly and stop.
+The orchestrator will clean up and retry with error feedback in the next iteration.
+
+**Why smart retry limits?**
+- Simple tools should work quickly or fail fast (3 attempts)
+- Complex tools naturally need more validation/fixing (8 attempts)
+- Prevents infinite loops while allowing thorough validation
+- Still much faster than unlimited debugging (was 140 turns!)
 
 ═══════════════════════════════════════════════════════════════════════════════
 CRITICAL REMINDERS
@@ -495,29 +560,31 @@ CRITICAL REMINDERS
 - Forget to run `uv sync` after creating pyproject.toml
 
 ✅ ALWAYS - PRODUCTION-READY CODE ONLY:
-- Study blog_writer patterns first (2-3 Read calls maximum)
-- Use @click.option for ALL parameters
+- Study blog_writer patterns thoroughly (5-10 Read calls to understand deeply)
+- Use @click.option for ALL parameters (never @click.argument)
 - Use ClaudeSession from ccsdk_toolkit
-- Include defensive parsing (parse_llm_json)
+- Use defensive file I/O: read_json_with_retry, write_json_with_retry
 - Import ALL required libraries in pyproject.toml
-- Run `uv sync` immediately after creating pyproject.toml
-- Test imports work: `python -c "import {spec.tool_name}"`
-- Write COMPLETE, WORKING implementations
+- Write COMPLETE, WORKING implementations (no mocks, stubs, TODOs)
 - Match blog_writer documentation quality
-- Fix ALL validation errors before finishing
 
 CRITICAL: This tool must solve the user's problem completely.
 No mocks, no placeholders, no "TODO: implement". Working code only.
 
-After creating files, IMMEDIATELY run validation checks:
-1. cd {spec.tool_name} && uv sync               # Install dependencies
-2. python -c "import {spec.tool_name}"          # Test imports
-3. python -m {spec.tool_name} --help            # Test CLI
-4. uv run ruff format --check .                 # Check formatting
-5. uv run ruff check .                          # Check linting
-6. uv run pyright .                             # Check types
+**WORKFLOW:**
+1. Study blog_writer thoroughly (5-10 reads) - understand patterns deeply
+2. Create ALL files based on those patterns
+3. Run validation once
+4. If validation fails, try to fix (max 3 attempts)
+5. If still failing after 3 attempts, report errors and stop
 
-START BY READING blog_writer files, THEN create your tool following those exact patterns."""
+**TURN BUDGET:**
+- Study: 5-10 turns
+- Create files: 5-15 turns (depending on complexity)
+- Validation + fixes: 5-10 turns
+- **Target total: 20-30 turns per iteration** (not 140!)
+
+START BY STUDYING blog_writer files thoroughly, THEN create your tool following those patterns."""
 
         try:
             # Configure CCSDK agent session with full tool access
@@ -529,8 +596,9 @@ START BY READING blog_writer files, THEN create your tool following those exact 
                     max_turns = int(env_max_turns)
                     logger.info(f"Using TOOL_GEN_MAX_TURNS override: {max_turns}")
                 else:
-                    # Pragmatic escalation: 50 → 100
-                    max_turns = 50 if iteration == 1 else 100
+                    # Doubled defaults to reduce "No assistant message found" errors
+                    # Pragmatic escalation: 100 → 200
+                    max_turns = 100 if iteration == 1 else 200
                     estimated_cost = max_turns * 0.03
                     logger.info(
                         f"Iteration {iteration}: max_turns={max_turns} (~${estimated_cost:.2f} budget)"
@@ -539,7 +607,7 @@ START BY READING blog_writer files, THEN create your tool following those exact 
                 logger.warning(
                     "Invalid TOOL_GEN_MAX_TURNS value, using iteration-based default"
                 )
-                max_turns = 50 if iteration == 1 else 100
+                max_turns = 100 if iteration == 1 else 200
 
             progress_buffer = []
             turn_indicators = {
@@ -746,9 +814,9 @@ START BY READING blog_writer files, THEN create your tool following those exact 
         self: "ToolGenerationOrchestrator", tool_path: Path, spec: ToolSpec
     ) -> ValidationResult:
         """
-        Run four-tier validation on generated tool.
+        Run five-tier validation on generated tool.
 
-        Order: Runtime → Amplifier Patterns → Static → Custom Pattern (fail fast)
+        Order: Runtime → Module Tests → Amplifier Patterns → Static → Custom Pattern (fail fast)
 
         Args:
             tool_path: Path to generated tool
@@ -765,7 +833,18 @@ START BY READING blog_writer files, THEN create your tool following those exact 
             logger.error("Runtime validation failed")
             return runtime_result
 
-        # 2. Amplifier pattern validation (SECOND - critical patterns)
+        # 2. Module tests (SECOND - functional correctness)
+        module_test_validator = ModuleTestValidator()
+        module_test_result = await module_test_validator.validate(tool_path)
+
+        if not module_test_result.passed:
+            logger.error("Module tests failed")
+            return module_test_result
+
+        # Track warnings from module tests
+        all_warnings = module_test_result.warnings or []
+
+        # 3. Amplifier pattern validation (THIRD - critical patterns)
         amplifier_validator = AmplifierPatternValidator()
         amplifier_result = await amplifier_validator.validate(
             tool_path, uses_llm=spec.uses_llm
@@ -775,7 +854,7 @@ START BY READING blog_writer files, THEN create your tool following those exact 
             logger.error("Amplifier pattern validation failed")
             return amplifier_result
 
-        # 2.5. Dependency validation (catches import mismatches early)
+        # 4. Dependency validation (catches import mismatches early)
         dependency_validator = DependencyValidator()
         dependency_result = await dependency_validator.validate(tool_path)
 
@@ -783,7 +862,7 @@ START BY READING blog_writer files, THEN create your tool following those exact 
             logger.error("Dependency validation failed")
             return dependency_result
 
-        # 3. Static validation
+        # 5. Static validation
         static_validator = StaticValidator()
         static_result = await static_validator.validate(tool_path)
 
@@ -791,7 +870,7 @@ START BY READING blog_writer files, THEN create your tool following those exact 
             logger.error("Static validation failed")
             return static_result
 
-        # 4. Custom pattern validation
+        # 6. Custom pattern validation
         pattern_validator = PatternValidator(spec.validation_rules)
         pattern_result = await pattern_validator.validate(tool_path)
 
@@ -800,7 +879,9 @@ START BY READING blog_writer files, THEN create your tool following those exact 
             return pattern_result
 
         logger.info("✓ All validations passed")
-        return ValidationResult(passed=True, stage="complete", errors=[])
+        return ValidationResult(
+            passed=True, stage="complete", errors=[], warnings=all_warnings
+        )
 
     def _refine_spec_with_errors(
         self: "ToolGenerationOrchestrator", spec: ToolSpec, errors: list[str]
@@ -859,6 +940,7 @@ START BY READING blog_writer files, THEN create your tool following those exact 
             reference_tools=spec.reference_tools,
             validation_rules=spec.validation_rules,
             constraints=spec.constraints,
+            uses_llm=spec.uses_llm,
         )
 
     def _categorize_errors(

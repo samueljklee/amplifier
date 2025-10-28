@@ -17,7 +17,7 @@ export default function ScenarioCard({ scenario, onSelect, onDelete }: Props) {
   const needsTooltip = description.length > maxDescriptionLength
 
   return (
-    <div className="relative group">
+    <div className="relative group hover:z-50">
       <button
         onClick={onSelect}
         className="w-full text-left bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-all duration-200 hover:scale-[1.01] focus:scale-[1.01] p-6 border border-gray-200 dark:border-gray-700 h-full flex flex-col"
@@ -31,7 +31,7 @@ export default function ScenarioCard({ scenario, onSelect, onDelete }: Props) {
           </p>
           {/* Tooltip - positioned below description */}
           {needsTooltip && (
-            <div className="absolute left-0 top-full mt-2 hidden group-hover/description:block z-10 w-64 p-3 text-sm text-white bg-gray-900 dark:bg-gray-700 rounded-lg shadow-lg">
+            <div className="absolute left-0 top-full mt-2 hidden group-hover/description:block z-50 w-64 p-3 text-sm text-white bg-gray-900 dark:bg-gray-700 rounded-lg shadow-lg">
               {description}
               {/* Arrow pointing up */}
               <div className="absolute bottom-full left-4 mb-[-1px] w-2 h-2 bg-gray-900 dark:bg-gray-700 rotate-45" />

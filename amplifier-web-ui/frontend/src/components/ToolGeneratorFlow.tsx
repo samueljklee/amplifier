@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import ConversationPhase from './ConversationPhase'
 import GenerationPhase from './GenerationPhase'
 
@@ -8,18 +8,13 @@ export default function ToolGeneratorFlow() {
   const [phase, setPhase] = useState<Phase>('conversation')
   const [executionId, setExecutionId] = useState<string | null>(null)
 
-  useEffect(() => {
-    // Start execution immediately when component mounts
-    startExecution()
-  }, [])
-
-  const startExecution = async () => {
+  const startExecution = async (initialMessage: string) => {
     try {
       const response = await fetch('/api/scenarios/tool_generator/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          parameters: { inline: '' } // Empty inline = conversation mode
+          parameters: { inline: initialMessage } // Pass user's message as inline requirements
         })
       })
 
@@ -38,24 +33,15 @@ export default function ToolGeneratorFlow() {
     setPhase('generation')
   }
 
-  if (!executionId) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-gray-600 dark:text-gray-400">
-          Starting tool generator...
-        </div>
-      </div>
-    )
-  }
-
   if (phase === 'conversation') {
     return (
       <ConversationPhase
         executionId={executionId}
         onComplete={handleConversationComplete}
+        onStartExecution={startExecution}
       />
     )
   }
 
-  return <GenerationPhase executionId={executionId} />
+  return <GenerationPhase executionId={executionId!} />
 }

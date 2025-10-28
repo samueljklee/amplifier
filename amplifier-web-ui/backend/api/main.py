@@ -15,19 +15,15 @@ load_dotenv(env_path)
 from config import settings
 from fastapi import FastAPI, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from models.execution import ExecutionRequest, ExecutionStatus
-from models.generation import CreateSessionRequest, CreateSessionResponse, SessionMessage
 from models.workflow import ConversationRequest, ConversationResponse
 from services.conversation_manager import ConversationManager
-from services.generation_session import GenerationSessionManager
 from services.process_manager import ProcessManager
 from services.scenario_discovery import ScenarioDiscoveryService
 
 # Global instances
 process_manager = ProcessManager()
 scenario_discovery = ScenarioDiscoveryService(settings.scenarios_path)
-generation_manager = GenerationSessionManager()
 conversation_manager = ConversationManager()
 
 # WebSocket connections
@@ -314,7 +310,13 @@ async def read_file(path: str) -> dict[str, str]:
         try:
             file_path.resolve().relative_to(repo_root.resolve())
         except ValueError:
-            raise HTTPException(status_code=403, detail="Access denied: File is outside allowed directories")
+            # Also allow reading from .data directories (where tools store their outputs)
+            resolved_path = file_path.resolve()
+            data_dir = (repo_root / ".data").resolve()
+            try:
+                resolved_path.relative_to(data_dir)
+            except ValueError:
+                raise HTTPException(status_code=403, detail="Access denied: File is outside allowed directories")
 
         if not file_path.exists():
             raise HTTPException(status_code=404, detail=f"File not found: {path}")
@@ -430,163 +432,6 @@ async def upload_file(file: UploadFile) -> dict[str, Any]:
         if isinstance(e, HTTPException):
             raise
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
-
-
-# Scenario Generation API (UltraThink)
-
-
-@app.post("/api/ultrathink/sessions", response_model=CreateSessionResponse)
-async def create_generation_session(request: CreateSessionRequest) -> CreateSessionResponse:
-    """Create a new scenario generation session.
-
-    Args:
-        request: Session creation request with description
-
-    Returns:
-        Session ID and status
-    """
-    session = generation_manager.create_session(request.description, request.name)
-
-    session.start_conversation()
-
-    return CreateSessionResponse(session_id=session.session_id, status=session.state.status)
-
-
-@app.get("/api/ultrathink/sessions/{session_id}")
-async def get_generation_session(session_id: str) -> dict[str, Any]:
-    """Get generation session state.
-
-    Args:
-        session_id: Session ID
-
-    Returns:
-        Session state
-    """
-    session = generation_manager.get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-
-    state = session.get_state()
-    return state.model_dump()
-
-
-@app.post("/api/ultrathink/sessions/{session_id}/messages")
-async def send_session_message(session_id: str, message: SessionMessage) -> dict[str, Any]:
-    """Send a message or refinement to the session.
-
-    Args:
-        session_id: Session ID
-        message: User message with action (refine or generate)
-
-    Returns:
-        Status and next step
-    """
-    from models.generation import GenerationStatus
-
-    session = generation_manager.get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-
-    if message.action == "refine":
-        more_questions = session.handle_user_response(message.content)
-
-        if not more_questions:
-            await session.generate_spec()
-
-        return {"status": "received", "has_more_questions": more_questions}
-
-    elif message.action == "generate":
-        if session.state.status != GenerationStatus.SPEC_READY:
-            raise HTTPException(status_code=400, detail="Spec not ready for generation")
-
-        asyncio.create_task(session.generate_code())
-        asyncio.create_task(session.validate())
-
-        return {"status": "generating", "message": "Starting code generation"}
-
-    else:
-        raise HTTPException(status_code=400, detail=f"Unknown action: {message.action}")
-
-
-@app.get("/api/ultrathink/sessions/{session_id}/events")
-async def stream_generation_events(session_id: str) -> StreamingResponse:
-    """Stream generation events via SSE.
-
-    Args:
-        session_id: Session ID
-
-    Returns:
-        SSE stream of events
-    """
-    session = generation_manager.get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-
-    async def event_generator() -> Any:
-        """Generate SSE events."""
-        sent_count = 0
-
-        while True:
-            events = session.get_events()
-
-            # Send new events
-            for event in events[sent_count:]:
-                event_data = event.model_dump_json()
-                yield f"data: {event_data}\n\n"
-                sent_count += 1
-
-            # Check if session is complete
-            state = session.get_state()
-            if state.status in ["complete", "failed"]:
-                break
-
-            await asyncio.sleep(0.5)
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
-
-
-@app.get("/api/ultrathink/sessions/{session_id}/files")
-async def get_generation_files(session_id: str) -> dict[str, Any]:
-    """Get generated files.
-
-    Args:
-        session_id: Session ID
-
-    Returns:
-        Generated files as dict
-    """
-    session = generation_manager.get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-
-    files = session.get_files()
-    return {"files": files, "count": len(files)}
-
-
-@app.post("/api/ultrathink/sessions/{session_id}/install")
-async def install_scenario(session_id: str) -> dict[str, Any]:
-    """Install generated scenario to scenarios/ directory.
-
-    Args:
-        session_id: Session ID
-
-    Returns:
-        Installation status
-    """
-    from models.generation import GenerationStatus
-
-    session = generation_manager.get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-
-    if session.state.status != GenerationStatus.COMPLETE:
-        raise HTTPException(status_code=409, detail="Generation not complete")
-
-    success = session.install_scenario()
-    if success:
-        return {"status": "installed", "scenario_id": session.scenario_name}
-    else:
-        raise HTTPException(status_code=500, detail="Installation failed")
 
 
 # WebSocket for real-time updates

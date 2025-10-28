@@ -1,7 +1,6 @@
 """Discovery stage for tool_generator - Conversational requirements gathering.
 
 This module implements conversational Q&A for gathering tool requirements from users.
-It uses the same pattern as scenario_generator but with an outcome-focused approach:
 - Asks about WHAT user wants (inputs, outputs, behavior)
 - Avoids technical details (CLI, Python, implementation)
 - Works identically in CLI and Web UI via interactive_prompt events

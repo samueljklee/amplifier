@@ -72,11 +72,16 @@ export default function ChatInterface({ executionId, events, onSendMessage }: Pr
     e.preventDefault()
     if (!input.trim() || !executionId) return
 
+    // Normalize multi-line input to single line (replaces newlines with spaces)
+    // This prevents blank lines from being sent to stdin which causes the
+    // backend's input() to read them as separate empty lines
+    const normalizedInput = input.replace(/\n+/g, ' ').trim()
+
     setInput('')
     setIsLoading(true)
 
     if (onSendMessage) {
-      onSendMessage(input)
+      onSendMessage(normalizedInput)
     }
 
     // Send response to running scenario via /respond endpoint
@@ -84,7 +89,7 @@ export default function ChatInterface({ executionId, events, onSendMessage }: Pr
       const res = await fetch(`/api/executions/${executionId}/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ response: input }),
+        body: JSON.stringify({ response: normalizedInput }),
       })
 
       if (!res.ok) {

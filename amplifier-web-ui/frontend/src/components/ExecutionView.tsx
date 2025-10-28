@@ -1,9 +1,10 @@
 import { useParams } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useWebSocket } from '../hooks/useWebSocket'
 import WorkflowViz from './WorkflowViz'
 import LogStream from './LogStream'
 import ChatInterface from './ChatInterface'
+import InteractivePrompt from './InteractivePrompt'
 import { simpleMarkdownToHtml } from '../utils/markdown'
 import { FilePreviewIcon, ReviewIcon, EditIcon, AnalyzerIcon, DocumentIcon } from './Icons'
 
@@ -20,19 +21,40 @@ export default function ExecutionView() {
   const [fileContent, setFileContent] = useState<FileContent | null>(null)
   const [loadingFile, setLoadingFile] = useState(false)
   const [viewMode, setViewMode] = useState<'raw' | 'preview'>('preview')
+  const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
 
   if (!executionId) {
     return <div>Invalid execution ID</div>
   }
 
-  // Check if scenario needs input
-  const needsInput = events.some(
-    (e: any) => e.type === 'log' && e.message?.toLowerCase().includes('feedback')
-  )
-
   // Check if execution is complete
   const isComplete = events.some(
     (e) => e.type === 'execution.complete'
+  )
+
+  // Detect active interactive prompt
+  const activePrompt = useMemo(() => {
+    const promptEvents = events.filter((e: any) => e.type === 'interactive.prompt')
+    if (promptEvents.length === 0) return null
+
+    const latestPrompt = promptEvents[promptEvents.length - 1]
+
+    // Check if already responded to this specific prompt
+    // Look for response submission AFTER this prompt's timestamp
+    const responded = events.some((e: any) =>
+      e.timestamp && latestPrompt.timestamp &&
+      e.timestamp > latestPrompt.timestamp &&
+      e.type === 'log' &&
+      (e.message?.includes('✓ Received answer') || e.message?.includes('✓ User response submitted'))
+    )
+
+    // Simple: if responded, hide the prompt (will reappear if new prompt arrives)
+    return responded ? null : latestPrompt
+  }, [events])
+
+  // Check if scenario needs input (fallback for old-style prompts)
+  const needsInput = events.some(
+    (e: any) => e.type === 'log' && e.message?.toLowerCase().includes('feedback')
   )
 
   // Extract output information from logs and structured events
@@ -110,10 +132,27 @@ export default function ExecutionView() {
         </div>
 
         {/* Output Files Section */}
-        {isComplete && outputFiles.length > 0 && (
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-green-900 dark:text-green-100 mb-4 flex items-center gap-2">
-              <span>✓</span> Generated Files
+        {outputFiles.length > 0 && (
+          <div className={`border rounded-lg shadow p-6 ${
+            isComplete
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+              : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+          }`}>
+            <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${
+              isComplete
+                ? 'text-green-900 dark:text-green-100'
+                : 'text-blue-900 dark:text-blue-100'
+            }`}>
+              {isComplete ? (
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                </svg>
+              )}
+              {isComplete ? 'Generated Files' : 'Draft Files'}
             </h3>
             {outputDir && (
               <p className="text-sm text-green-700 dark:text-green-300 mb-3 flex items-center gap-2">
@@ -239,14 +278,44 @@ export default function ExecutionView() {
       {/* Chat sidebar - 1 column on large screens */}
       <div className="lg:col-span-1">
         <div className="sticky top-6">
-          {needsInput && (
+          {(needsInput || activePrompt) && (
             <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
               <p className="text-sm text-yellow-800 dark:text-yellow-200">
                 💬 Scenario is waiting for your input
               </p>
             </div>
           )}
-          <ChatInterface executionId={executionId} events={events} />
+
+          {/* Show InteractivePrompt when there's an active prompt, otherwise show ChatInterface */}
+          {activePrompt ? (
+            <InteractivePrompt
+              prompt={(activePrompt as any).prompt_text || (activePrompt as any).prompt || 'Please respond'}
+              promptType={(activePrompt as any).prompt_type || 'text'}
+              options={(activePrompt as any).prompt_options}
+              onSubmit={async (response) => {
+                setIsWaitingForResponse(true)
+                try {
+                  await fetch(`/api/executions/${executionId}/respond`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ response })
+                  })
+                } catch (error) {
+                  console.error('Failed to submit response:', error)
+                  alert('Failed to submit. Please try again.')
+                } finally {
+                  setIsWaitingForResponse(false)
+                }
+              }}
+              isLoading={isWaitingForResponse}
+              metadata={{
+                iteration: (activePrompt as any).metadata?.iteration,
+                helpText: "Provide your response to continue"
+              }}
+            />
+          ) : (
+            <ChatInterface executionId={executionId} events={events} />
+          )}
         </div>
       </div>
     </div>

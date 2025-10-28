@@ -75,7 +75,9 @@ export default function ScenarioList() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600" role="status" aria-label="Loading scenarios">
+          <span className="sr-only">Loading scenarios...</span>
+        </div>
       </div>
     )
   }
@@ -104,8 +106,8 @@ export default function ScenarioList() {
 
   const pastExecutions = executionsData?.executions || []
 
-  // Filter out tool_generator from the scenarios list
-  const filteredScenarios = scenarios?.filter(s => s.id !== 'tool_generator')
+  // No filtering - show all scenarios including tool_generator
+  const filteredScenarios = scenarios
 
   // Show only first 6 scenarios by default
   const INITIAL_SCENARIO_COUNT = 6
@@ -147,19 +149,21 @@ export default function ScenarioList() {
           <div className="mt-6 text-center">
             <button
               onClick={() => setShowAllScenarios(!showAllScenarios)}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className="inline-flex items-center gap-2 min-h-touch px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-instant"
+              aria-expanded={showAllScenarios}
+              aria-label={showAllScenarios ? 'Show less scenarios' : `Show ${scenarios!.length - INITIAL_SCENARIO_COUNT} more scenarios`}
             >
               {showAllScenarios ? (
                 <>
                   Show Less
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
                   </svg>
                 </>
               ) : (
                 <>
                   Show {scenarios!.length - INITIAL_SCENARIO_COUNT} More
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </>
@@ -174,7 +178,9 @@ export default function ScenarioList() {
         <div>
           <button
             onClick={() => setExecutionsExpanded(!executionsExpanded)}
-            className="w-full mb-4 flex items-center justify-between group"
+            className="w-full mb-4 flex items-center justify-between group min-h-touch"
+            aria-expanded={executionsExpanded}
+            aria-label={executionsExpanded ? 'Hide recent work' : 'Show recent work'}
           >
             <div>
               <h2 className="text-xl font-bold text-gray-900 dark:text-white text-left">
@@ -185,12 +191,13 @@ export default function ScenarioList() {
               </p>
             </div>
             <svg
-              className={`w-5 h-5 text-gray-500 transition-transform ${
+              className={`w-5 h-5 text-gray-500 transition-transform duration-responsive ${
                 executionsExpanded ? 'rotate-180' : ''
               }`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
@@ -205,7 +212,8 @@ export default function ScenarioList() {
               >
                 <button
                   onClick={() => navigate(`/executions/${exec.execution_id}`)}
-                  className="w-full p-4 text-left bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-all duration-200 hover:scale-[1.01] focus:scale-[1.01] border border-gray-200 dark:border-gray-700"
+                  className="w-full min-h-touch p-4 text-left bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-all duration-responsive hover:scale-[1.01] focus:scale-[1.01] border border-gray-200 dark:border-gray-700"
+                  aria-label={`View execution: ${exec.scenario_id} completed ${new Date(exec.completed_at).toLocaleString()}`}
                 >
                   <div className="flex-1 min-w-0 pr-8">
                     <div className="flex items-center gap-2 mb-1">
@@ -226,14 +234,15 @@ export default function ScenarioList() {
                 </button>
                 <button
                   onClick={(e) => handleDeleteExecution(exec.execution_id, e)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 p-2 rounded-full bg-white dark:bg-gray-700 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-all shadow-sm border border-gray-200 dark:border-gray-600"
-                  aria-label="Delete execution"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 min-w-touch min-h-touch opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 p-2 rounded-full bg-white dark:bg-gray-700 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-all duration-instant shadow-sm border border-gray-200 dark:border-gray-600"
+                  aria-label={`Delete execution: ${exec.scenario_id}`}
                 >
                   <svg
                     className="w-4 h-4"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
+                    aria-hidden="true"
                   >
                     <path
                       strokeLinecap="round"

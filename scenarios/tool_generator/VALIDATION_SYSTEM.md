@@ -1,0 +1,235 @@
+# Tool Generator Validation System
+
+## Overview
+
+The tool_generator now implements **comprehensive module-level testing** to ensure generated tools are functionally correct, not just syntactically valid.
+
+## The Problem
+
+Previously, validation only tested:
+- ✅ Imports work (`import module`)
+- ✅ CLI runs (`--help` flag)
+- ✅ Static checks (linting, types)
+- ❌ **NO MODULE TESTING** - modules could have bugs in core logic
+
+### Real Example
+
+The `research_assistant` tool passed all validations but failed at runtime:
+```python
+# theme_extractor/core.py:47
+if not isinstance(themes, list):
+    logger.error("Failed to parse themes as list")
+    return None
+```
+
+**Root cause**: LLM returned `{"themes": [...]}` instead of `[...]`, but this was never tested.
+
+## The Solution: 5-Tier Validation Pipeline
+
+### Validation Order (Fail Fast)
+
+1. **Runtime Validation** - Most critical
+   - Dependencies install (`uv sync`)
+   - Imports work
+   - CLI executes (`--help`)
+
+2. **Module Tests** ⭐ NEW
+   - Each module tested with realistic inputs
+   - Tests both valid and invalid inputs
+   - Tests edge cases (None, empty, malformed)
+   - LLM modules tested with actual responses
+
+3. **Amplifier Patterns**
+   - Critical patterns (defensive parsing, etc.)
+   - Context-aware (LLM vs non-LLM tools)
+
+4. **Dependency Validation**
+   - Import/export alignment
+   - No missing dependencies
+
+5. **Static Validation**
+   - Linting (ruff)
+   - Type checking (pyright)
+   - Formatting
+
+6. **Custom Patterns**
+   - Tool-specific validation rules
+
+## Module Test Requirements
+
+### Generated Test Structure
+
+Every generated tool MUST include `tests/test_modules.py`:
+
+```python
+"""Module-level tests for {tool_name}."""
+import pytest
+from {tool_name}.extractor import extract_data
+
+def test_extractor_valid_input():
+    """Test extractor with valid input."""
+    result = extract_data("realistic test input")
+    assert result is not None
+    assert isinstance(result, dict)
+    assert "required_field" in result
+
+def test_extractor_invalid_input():
+    """Test extractor handles invalid input gracefully."""
+    result = extract_data(None)
+    assert result is None  # Should handle gracefully
+
+def test_extractor_empty_input():
+    """Test extractor handles empty input."""
+    result = extract_data("")
+    # Verify expected behavior
+```
+
+### Test Requirements
+
+1. **Test EVERY module** (extractor, analyzer, formatter, etc.)
+2. **Use realistic inputs** (not just `"test"`)
+3. **Test both valid AND invalid inputs**
+4. **Test edge cases** (empty, None, malformed)
+5. **For LLM modules**: Mock responses or use small test prompts
+6. **Add pytest** to dev dependencies in `pyproject.toml`
+
+## Benefits
+
+### Before (Old System)
+```
+✅ Tool imports correctly
+✅ CLI --help works
+✅ Passes static checks
+❌ Crashes on first real input (parse_llm_json returns wrong type)
+```
+
+### After (New System)
+```
+✅ Tool imports correctly
+✅ CLI --help works
+✅ Module tests pass with realistic inputs
+✅ Handles edge cases gracefully
+✅ LLM parsing validated with type guards
+✅ Passes static checks
+✓ Tool actually works!
+```
+
+## Implementation Details
+
+### ModuleTestValidator
+
+New validator class that:
+- Looks for `tests/test_modules.py`
+- Runs `pytest` on the test file
+- Returns detailed error messages on failure
+- Allows warnings (tests optional but recommended)
+
+**Location**: `scenarios/tool_generator/validation/module_test_validator.py`
+
+### Task Writer Instructions
+
+Updated `task_writer.py` to instruct Claude Code SDK to:
+- Generate `tests/test_modules.py` for every tool
+- Include tests in validation workflow
+- Test each module comprehensively
+
+**Location**: `scenarios/tool_generator/delegation/task_writer.py:325-360`
+
+### Integration
+
+Updated orchestrator to run module tests as second validation phase:
+
+```python
+# 1. Runtime validation (imports, CLI)
+# 2. Module tests ⭐ NEW
+# 3. Amplifier patterns
+# 4. Dependencies
+# 5. Static checks
+# 6. Custom patterns
+```
+
+**Location**: `scenarios/tool_generator/orchestrator/core.py:745-816`
+
+## Usage
+
+### For Tool Generator
+
+No changes needed! The system automatically:
+1. Instructs Claude Code SDK to generate tests
+2. Runs tests during validation
+3. Provides feedback if tests fail
+4. Iterates until tests pass
+
+### For Manual Testing
+
+To run module tests on an existing tool:
+
+```bash
+cd scenarios/{tool_name}
+uv run pytest tests/test_modules.py -v
+```
+
+### For Debugging
+
+If module tests fail:
+1. Check `tests/test_modules.py` for test implementation
+2. Run pytest locally to see detailed failures
+3. Fix module logic based on test feedback
+4. Re-run validation
+
+## Migration Path
+
+### Existing Tools
+
+Existing tools (blog_writer, web_to_md, etc.) don't have tests yet:
+- Tests are **optional** for existing tools
+- Validation shows warning but doesn't fail
+- Recommended to add tests gradually
+
+### New Tools
+
+All new tools generated by tool_generator will:
+- Include `tests/test_modules.py` automatically
+- Have module tests validated
+- Must pass tests to be accepted
+
+## Key Learnings
+
+### Why Module Testing Matters
+
+1. **Catches runtime bugs** - Logic errors not visible in static checks
+2. **Validates LLM parsing** - Ensures defensive parsing actually works
+3. **Tests error handling** - Validates graceful failure with bad inputs
+4. **Documents expected behavior** - Tests serve as living documentation
+5. **Prevents regressions** - Changes that break modules are caught immediately
+
+### Test Design Principles
+
+1. **Realistic inputs** - Use actual data structures, not placeholders
+2. **Edge cases** - Test None, empty, malformed, unexpected types
+3. **Error paths** - Validate graceful failure, not just success
+4. **Type guards** - Test that `isinstance()` checks work correctly
+5. **Minimal mocking** - Use real code paths when possible
+
+## Related Files
+
+- `scenarios/tool_generator/validation/module_test_validator.py` - Validator implementation
+- `scenarios/tool_generator/delegation/task_writer.py` - Test generation instructions
+- `scenarios/tool_generator/orchestrator/core.py` - Pipeline integration
+- `scenarios/tool_generator/models/generation.py` - ValidationResult with warnings
+- `DISCOVERIES.md` - Entry about module testing addition
+
+## Future Enhancements
+
+Potential improvements:
+1. **Coverage reports** - Track which lines are tested
+2. **Integration tests** - Test end-to-end workflows
+3. **Property-based testing** - Use hypothesis for random inputs
+4. **Performance tests** - Validate module performance
+5. **LLM mocking helpers** - Utilities for mocking LLM responses
+
+---
+
+**Status**: ✅ Implemented (2025-10-27)
+
+**Impact**: Every generated tool now validated with functional tests, ensuring they work correctly before being accepted.

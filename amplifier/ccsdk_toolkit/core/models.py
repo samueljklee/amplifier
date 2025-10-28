@@ -46,6 +46,14 @@ class SessionOptions(BaseModel):
         default=None,
         description="Working directory for the agent. None = current directory.",
     )
+    setting_sources: list[str] | None = Field(
+        default=None,
+        description="Setting sources to load: 'user', 'project', 'local'. If None and cwd is set, defaults to ['project'] to auto-load agents from .claude/agents/",
+    )
+    max_buffer_size: int | None = Field(
+        default=None,
+        description="Maximum buffer size for SDK message handling. None = unlimited (SDK default). Increase if hitting buffer limits in long sessions (e.g., 10000 for 100+ turn sessions).",
+    )
 
     class Config:
         json_schema_extra = {

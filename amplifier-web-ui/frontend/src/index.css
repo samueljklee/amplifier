@@ -17,6 +17,21 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* ============================================
+     AMPLIFIED DESIGN: Motion Protocol Tokens
+     Following design philosophy standards
+     ============================================ */
+
+  /* Duration Protocol */
+  --duration-instant: 50ms;      /* <100ms: Hover feedback, instant response */
+  --duration-responsive: 200ms;   /* 100-300ms: Button press, toggle, interactive */
+  --duration-deliberate: 400ms;   /* 300-1000ms: Modal, drawer, major transitions */
+
+  /* Easing Curves */
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);      /* Smooth deceleration */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* Bouncy, energetic */
+  --ease-gentle: cubic-bezier(0.25, 0.1, 0.25, 1);  /* Very gentle, premium */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -38,8 +53,12 @@ body {
   width: 100%;
 }
 
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
 .agent-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: pulse 2s var(--ease-smooth) infinite;
 }
 
 @keyframes pulse {
@@ -49,4 +68,58 @@ body {
   50% {
     opacity: 0.5;
   }
+}
+
+/* ============================================
+   ACCESSIBILITY: Reduced Motion Support
+   Respects user preference for reduced motion
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Still show loading states, just instantly */
+  .animate-spin,
+  .agent-pulse {
+    animation: none !important;
+  }
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Screen reader only - hide visually but keep accessible */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Apply motion protocol to interactive elements */
+button,
+a,
+.interactive {
+  transition-property: background-color, border-color, color, transform, opacity;
+  transition-timing-function: var(--ease-smooth);
+  transition-duration: var(--duration-instant);
+}
+
+button:active,
+a:active {
+  transform: scale(0.98);
+  transition-duration: var(--duration-responsive);
 }
