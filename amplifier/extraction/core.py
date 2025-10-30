@@ -16,14 +16,17 @@ from memory.models import Memory
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Import Claude Agent SDK - REQUIRED for memory extraction
+# Import Claude Code SDK - REQUIRED for memory extraction
 try:
-    from claude_agent_sdk import ClaudeAgentOptions
-    from claude_agent_sdk import ClaudeSDKClient
+    from claude_code_sdk import ClaudeCodeOptions
+    from claude_code_sdk import ClaudeSDKClient
+
+    # Compatibility alias
+    ClaudeAgentOptions = ClaudeCodeOptions
 except ImportError:
     raise RuntimeError(
-        "Claude Agent SDK not available. Memory extraction requires Claude Agent SDK. "
-        "Install with: pip install claude-agent-sdk"
+        "Claude Code SDK not available. Memory extraction requires Claude Code SDK. "
+        "Install with: pip install claude-code-sdk or uv add claude-code-sdk"
     )
 
 # Import extraction configuration

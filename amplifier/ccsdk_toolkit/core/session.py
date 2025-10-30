@@ -65,8 +65,8 @@ class ClaudeSession:
         """Enter async context and initialize SDK client."""
         try:
             # Import SDK only when actually using it
-            from claude_agent_sdk import ClaudeAgentOptions
-            from claude_agent_sdk import ClaudeSDKClient
+            from claude_code_sdk import ClaudeCodeOptions
+            from claude_code_sdk import ClaudeSDKClient
 
             # Build options dict, including tools and permissions
             sdk_options = {
@@ -95,13 +95,13 @@ class ClaudeSession:
             if self.options.max_buffer_size is not None:
                 sdk_options["max_buffer_size"] = self.options.max_buffer_size
 
-            self.client = ClaudeSDKClient(options=ClaudeAgentOptions(**sdk_options))
+            self.client = ClaudeSDKClient(options=ClaudeCodeOptions(**sdk_options))
             await self.client.__aenter__()
             return self
 
         except ImportError:
             raise SDKNotAvailableError(
-                "claude-agent-sdk Python package not installed. Install with: pip install claude-agent-sdk or uv add claude-agent-sdk"
+                "claude-code-sdk Python package not installed. Install with: pip install claude-code-sdk or uv add claude-code-sdk"
             )
         except Exception as e:
             # Catch and report SDK initialization errors clearly

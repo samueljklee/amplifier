@@ -14,9 +14,11 @@ from dataclasses import dataclass
 from typing import Any
 
 try:
-    from claude_agent_sdk import ClaudeAgentOptions
-    from claude_agent_sdk import ClaudeSDKClient
+    from claude_code_sdk import ClaudeCodeOptions
+    from claude_code_sdk import ClaudeSDKClient
 
+    # Compatibility alias
+    ClaudeAgentOptions = ClaudeCodeOptions
     CLAUDE_SDK_AVAILABLE = True
 except ImportError:
     CLAUDE_SDK_AVAILABLE = False
