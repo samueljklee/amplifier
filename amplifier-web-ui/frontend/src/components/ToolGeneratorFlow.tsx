@@ -57,36 +57,36 @@ export default function ToolGeneratorFlow() {
 
       {/* Input area - Always visible until execution starts */}
       {!isWaiting && (
-        <div className="flex gap-2">
-          <textarea
-            value={currentAnswer}
-            onChange={(e) => setCurrentAnswer(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                handleSendMessage()
-              }
-            }}
-            placeholder="Describe the tool you want to create... (e.g., 'Create a tool that analyzes code complexity' or paste your detailed requirements)"
-            className="flex-1 p-4 border border-gray-300 dark:border-gray-600 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white"
-            rows={6}
-            autoFocus
-          />
-          <button
-            onClick={handleSendMessage}
-            disabled={!currentAnswer.trim()}
-            className="px-6 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors"
-          >
-            Send
-          </button>
-        </div>
-      )}
+        <>
+          <div className="flex gap-2">
+            <textarea
+              value={currentAnswer}
+              onChange={(e) => setCurrentAnswer(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSendMessage()
+                }
+              }}
+              placeholder="Describe the tool you want to create... (e.g., 'Create a tool that analyzes code complexity' or paste your detailed requirements)"
+              className="flex-1 p-4 border border-gray-300 dark:border-gray-600 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white"
+              rows={6}
+              autoFocus
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!currentAnswer.trim()}
+              className="px-6 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-colors"
+            >
+              Send
+            </button>
+          </div>
 
-      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-        {isWaiting
-          ? 'Processing...'
-          : 'Press Enter to send, Shift+Enter for new line'}
-      </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            Press Enter to send, Shift+Enter for new line
+          </p>
+        </>
+      )}
 
       {/* Show sent message as chat bubble (matches original design) */}
       {sentMessage && (
@@ -95,6 +95,13 @@ export default function ToolGeneratorFlow() {
             <p className="whitespace-pre-wrap text-sm">{sentMessage}</p>
           </div>
         </div>
+      )}
+
+      {/* Processing text below the message */}
+      {isWaiting && (
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+          Processing...
+        </p>
       )}
 
       {/* Terminal output */}
