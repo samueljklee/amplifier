@@ -16,8 +16,6 @@ from config import settings
 from fastapi import FastAPI, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from models.execution import ExecutionRequest, ExecutionStatus
-from models.workflow import ConversationRequest, ConversationResponse
-from services.conversation_manager import ConversationManager
 from services.process_manager import ProcessManager
 from services.pty_manager import PTYManager
 from services.scenario_discovery import ScenarioDiscoveryService
@@ -26,7 +24,6 @@ from services.scenario_discovery import ScenarioDiscoveryService
 process_manager = ProcessManager()
 pty_manager = PTYManager()
 scenario_discovery = ScenarioDiscoveryService(settings.scenarios_path)
-conversation_manager = ConversationManager()
 
 # WebSocket connections
 websocket_connections: dict[str, list[WebSocket]] = {}
@@ -506,44 +503,6 @@ async def websocket_endpoint(websocket: WebSocket, execution_id: str) -> None:
     finally:
         # Unregister from process manager
         process_manager.unregister_websocket(execution_id, websocket)
-
-
-# ============================================================================
-# Workflow Conversation Endpoints
-# ============================================================================
-
-
-@app.post("/api/workflow/conversation")
-async def workflow_conversation(request: ConversationRequest) -> ConversationResponse:
-    """Continue a workflow creation conversation.
-
-    Start a new conversation by omitting session_id.
-    Continue an existing conversation by providing session_id.
-
-    Args:
-        request: User message and optional session ID
-
-    Returns:
-        AI response with updated workflow state
-    """
-    return await conversation_manager.start_conversation(request)
-
-
-@app.get("/api/workflow/session/{session_id}")
-async def get_workflow_session(session_id: str) -> dict[str, Any]:
-    """Get workflow session state.
-
-    Args:
-        session_id: Session ID
-
-    Returns:
-        Session state including workflow and conversation history
-    """
-    session = conversation_manager.get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
-
-    return session.model_dump()
 
 
 # Claude Code Terminal Endpoints
