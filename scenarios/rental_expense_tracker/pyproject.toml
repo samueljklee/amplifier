@@ -1,0 +1,31 @@
+[project]
+name = "rental-expense-tracker"
+description = "Track time and expenses for short-term rentals from PDF receipts and invoices"
+version = "1.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "amplifier",
+    "click>=8.0",
+    "pypdf>=4.0.0",
+]
+
+[tool.uv.sources]
+amplifier = { path = "../../", editable = true }
+
+[tool.amplifier.workflow]
+stages = [
+    { id = "pdf_input", type = "input", label = "PDF Receipts", prompt = "Select directory or files containing PDF receipts" },
+    { id = "extract_pdfs", type = "process", label = "Extract Text", depends_on = ["pdf_input"] },
+    { id = "parse_expenses", type = "process", label = "Parse Expenses", depends_on = ["extract_pdfs"] },
+    { id = "parse_time", type = "process", label = "Parse Time Entries", depends_on = ["parse_expenses"] },
+    { id = "categorize", type = "process", label = "Categorize Expenses", depends_on = ["parse_time"] },
+    { id = "generate_report", type = "output", label = "Generate Report", depends_on = ["categorize"] }
+]
+
+[tool.amplifier.workflow.layout]
+positions.pdf_input = [100, 200]
+positions.extract_pdfs = [350, 200]
+positions.parse_expenses = [600, 150]
+positions.parse_time = [600, 250]
+positions.categorize = [850, 200]
+positions.generate_report = [1100, 200]

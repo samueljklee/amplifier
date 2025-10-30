@@ -112,3 +112,30 @@ class PreviewAvailableEvent(WebSocketEvent):
     preview_type: str
     preview_data: Any
     metadata: Optional[dict[str, Any]] = None
+
+
+class StreamOutputEvent(WebSocketEvent):
+    """Streaming text output event"""
+
+    type: str = "stream.output"
+    text: str
+    source: str = "assistant"  # assistant, tool, thinking, agent
+
+
+class ToolCallEvent(WebSocketEvent):
+    """Tool call event"""
+
+    type: str = "tool.call"
+    tool_name: str
+    tool_input: Any
+    tool_use_id: Optional[str] = None
+
+
+class ToolResultEvent(WebSocketEvent):
+    """Tool result event"""
+
+    type: str = "tool.result"
+    tool_use_id: str
+    tool_name: str
+    result: Any
+    is_error: bool = False

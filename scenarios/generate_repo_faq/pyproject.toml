@@ -1,0 +1,28 @@
+[project]
+name = "generate-repo-faq"
+description = "Analyze a repository and generate comprehensive FAQ documentation"
+version = "1.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "amplifier",
+    "click>=8.0",
+]
+
+[tool.uv.sources]
+amplifier = { path = "../../", editable = true }
+
+[tool.amplifier.workflow]
+stages = [
+    { id = "repo_input", type = "input", label = "Repository Path", prompt = "Enter path to repository directory" },
+    { id = "extract_files", type = "process", label = "Extract Files", depends_on = ["repo_input"] },
+    { id = "analyze_content", type = "process", label = "Analyze Content", depends_on = ["extract_files"] },
+    { id = "generate_faq", type = "process", label = "Generate FAQ", depends_on = ["analyze_content"] },
+    { id = "save_output", type = "output", label = "Save FAQ", depends_on = ["generate_faq"] }
+]
+
+[tool.amplifier.workflow.layout]
+positions.repo_input = [100, 200]
+positions.extract_files = [350, 200]
+positions.analyze_content = [600, 200]
+positions.generate_faq = [850, 200]
+positions.save_output = [1100, 200]

@@ -1,11 +1,14 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useWebSocket } from '../hooks/useWebSocket'
-import type { InteractivePromptEvent, StageTransitionEvent, ProgressEvent, AgentStartEvent, AgentCompleteEvent, LogEvent } from '../types/api'
+import type { AgentCompleteEvent, AgentStartEvent, InteractivePromptEvent, LogEvent, ProgressEvent, StageTransitionEvent, StreamOutputEvent } from '../types/api'
+import TerminalProxy from './TerminalProxy'
 
 interface Message {
-  role: 'assistant' | 'user' | 'status'
+  role: 'assistant' | 'user' | 'status' | 'streaming'
   content: string
   timestamp: Date
+  source?: 'assistant' | 'tool' | 'thinking' | 'agent'
 }
 
 interface Props {
@@ -17,16 +20,22 @@ interface Props {
 // Removed predefined suggestions - users now describe their tool directly
 
 export default function ConversationPhase({ executionId, onComplete, onStartExecution }: Props) {
-  const { events, isConnected } = useWebSocket(executionId || '')
+  const [searchParams] = useSearchParams()
+  const useTerminal = !searchParams.has('customCreateScenario')
+
+  // Don't connect to regular WebSocket in terminal mode (terminal has its own WS connection)
+  const { events, isConnected } = useWebSocket(useTerminal ? '' : (executionId || ''))
   const [messages, setMessages] = useState<Message[]>([])
   const [currentAnswer, setCurrentAnswer] = useState('')
   const [isWaiting, setIsWaiting] = useState(false)
   const [hasNewMessages, setHasNewMessages] = useState(false)
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
-  const [logsExpanded, setLogsExpanded] = useState(false)
+  const [logsExpanded, setLogsExpanded] = useState(true)
+  const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set())
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const logsContainerRef = useRef<HTMLDivElement>(null)
 
   // Listen for interactive.prompt events
   useEffect(() => {
@@ -55,6 +64,42 @@ export default function ConversationPhase({ executionId, onComplete, onStartExec
       }
     }
   }, [events, messages])
+
+  // Listen for streaming output and accumulate
+  useEffect(() => {
+    const streamEvents = events.filter(
+      (e): e is StreamOutputEvent => e.type === 'stream.output'
+    )
+
+    if (streamEvents.length > 0) {
+      // Group consecutive stream events by source to create message chunks
+      const latestEvent = streamEvents[streamEvents.length - 1]
+
+      setMessages(prev => {
+        // Check if last message is a streaming message with same source
+        const lastMsg = prev[prev.length - 1]
+        if (lastMsg && lastMsg.role === 'streaming' && lastMsg.source === latestEvent.source) {
+          // Append to existing streaming message
+          return [
+            ...prev.slice(0, -1),
+            {
+              ...lastMsg,
+              content: lastMsg.content + latestEvent.text,
+              timestamp: new Date(latestEvent.timestamp || Date.now())
+            }
+          ]
+        } else {
+          // Create new streaming message
+          return [...prev, {
+            role: 'streaming' as const,
+            content: latestEvent.text,
+            source: latestEvent.source,
+            timestamp: new Date(latestEvent.timestamp || Date.now())
+          }]
+        }
+      })
+    }
+  }, [events])
 
   // Listen for meaningful status updates and add them to conversation
   useEffect(() => {
@@ -145,6 +190,29 @@ export default function ConversationPhase({ executionId, onComplete, onStartExec
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  // Check if logs container is near bottom
+  const isLogsNearBottom = (container: HTMLElement) => {
+    const threshold = 50 // pixels from bottom
+    const position = container.scrollHeight - container.scrollTop - container.clientHeight
+    return position < threshold
+  }
+
+  // Auto-scroll logs when new events arrive (only if user is already at bottom)
+  useEffect(() => {
+    if (!logsExpanded || events.length === 0) return
+
+    const container = logsContainerRef.current
+    if (!container) return
+
+    // Only auto-scroll if user is near the bottom
+    if (isLogsNearBottom(container)) {
+      // Use setTimeout to ensure the DOM has updated with new events
+      setTimeout(() => {
+        container.scrollTop = container.scrollHeight
+      }, 0)
+    }
+  }, [events.length, logsExpanded])
+
   const handleSendMessage = async () => {
     if (!currentAnswer.trim()) return
 
@@ -178,12 +246,12 @@ export default function ConversationPhase({ executionId, onComplete, onStartExec
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-8">
+    <div className="max-w-4xl mx-auto p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create New Tool</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create New Scenario</h1>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Describe the tool you want to create and I'll help you build it
+            Describe the scenario you want to create and I'll help you build it
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -208,14 +276,21 @@ export default function ConversationPhase({ executionId, onComplete, onStartExec
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[80%] rounded-lg p-4 ${
-                    msg.role === 'user'
-                      ? 'bg-indigo-600 text-white'
-                      : msg.role === 'status'
+                  className={`max-w-[80%] rounded-lg p-4 ${msg.role === 'user'
+                    ? 'bg-indigo-600 text-white'
+                    : msg.role === 'status'
                       ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                  }`}
+                      : msg.role === 'streaming'
+                        ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-900 dark:text-green-200'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                    }`}
                 >
+                  {msg.role === 'streaming' && msg.source && (
+                    <div className="text-xs font-semibold mb-2 flex items-center gap-1">
+                      <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      {msg.source}
+                    </div>
+                  )}
                   <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
                   <span className="text-xs opacity-70 mt-2 block">
                     {msg.timestamp.toLocaleTimeString()}
@@ -276,41 +351,124 @@ export default function ConversationPhase({ executionId, onComplete, onStartExec
           : 'Press Enter to send, Shift+Enter for new line'}
       </p>
 
-      {/* Collapsible execution logs section */}
-      {executionId && events.length > 0 && (
+      {/* Execution output section - Terminal or Logs */}
+      {executionId && (
         <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
-          <button
-            onClick={() => setLogsExpanded(!logsExpanded)}
-            className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
-          >
-            <svg
-              className={`w-4 h-4 transition-transform ${logsExpanded ? 'rotate-90' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-            <span>Execution Logs ({events.length} events)</span>
-          </button>
+          {useTerminal ? (
+            // Terminal mode - PTY output in xterm.js
+            <TerminalProxy executionId={executionId} />
+          ) : (
+            // Log mode - Parsed event logs (current implementation)
+            events.length > 0 && (
+              <>
+                <button
+                  onClick={() => setLogsExpanded(!logsExpanded)}
+                  className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+                >
+                  <svg
+                    className={`w-4 h-4 transition-transform ${logsExpanded ? 'rotate-90' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  <span>Execution Logs ({events.length} events)</span>
+                </button>
 
-          {logsExpanded && (
-            <div className="mt-3 bg-gray-50 dark:bg-gray-800 rounded-lg p-4 max-h-64 overflow-y-auto font-mono text-xs">
-              {events.map((event, i) => (
-                <div key={i} className="mb-1 text-gray-700 dark:text-gray-300">
-                  <span className="text-gray-500 dark:text-gray-500">
-                    [{new Date(event.timestamp || Date.now()).toLocaleTimeString()}]
-                  </span>{' '}
-                  <span className="text-blue-600 dark:text-blue-400">[{event.type}]</span>{' '}
-                  {event.type === 'log' && (event as LogEvent).message}
-                  {event.type === 'progress' && (event as ProgressEvent).message}
-                  {event.type === 'agent.start' && `Agent: ${(event as AgentStartEvent).agent}`}
-                  {event.type === 'agent.complete' && `Agent complete: ${(event as AgentCompleteEvent).agent}`}
-                  {event.type === 'stage.transition' &&
-                    `Stage: ${(event as StageTransitionEvent).from_stage || 'start'} → ${(event as StageTransitionEvent).to_stage}`}
-                </div>
-              ))}
-            </div>
+                {logsExpanded && (
+                  <div
+                    ref={logsContainerRef}
+                    className="mt-3 bg-gray-50 dark:bg-gray-800 rounded-lg p-4 max-h-80 overflow-y-auto font-mono text-xs"
+                  >
+                    {/* Deduplicate: Prefer stream.output over log events with similar content */}
+                    {(() => {
+                      const seen = new Set<string>()
+
+                      // Normalize content by removing common prefixes for comparison
+                      const normalizeContent = (text: string): string => {
+                        return text
+                          .trim()
+                          .replace(/^\[amplifier\]\s*/i, '')
+                          .replace(/^\[assistant\]\s*/i, '')
+                          .replace(/^\[agent\]\s*/i, '')
+                          .replace(/^\[tool\]\s*/i, '')
+                          .trim()
+                      }
+
+                      const dedupedEvents = events.filter((event) => {
+                        if (event.type === 'stream.output') {
+                          const streamEvent = event as StreamOutputEvent
+                          const normalized = normalizeContent(streamEvent.text)
+                          seen.add(normalized)
+                          return true // Always show stream.output
+                        } else if (event.type === 'log') {
+                          const logEvent = event as LogEvent
+                          const normalized = normalizeContent(logEvent.message || '')
+                          // Skip log events if we've seen similar content in stream.output
+                          if (seen.has(normalized)) {
+                            return false
+                          }
+                          return true
+                        }
+                        return true // Show all other event types
+                      })
+
+                      return dedupedEvents.map((event, i) => (
+                        <div key={i} className="mb-1 text-gray-700 dark:text-gray-300">
+                          <span className="text-gray-500 dark:text-gray-500">
+                            [{new Date(event.timestamp || Date.now()).toLocaleTimeString()}]
+                          </span>{' '}
+                          <span className="text-blue-600 dark:text-blue-400">[{event.type}]</span>{' '}
+                          {event.type === 'log' && (event as LogEvent).message}
+                          {event.type === 'progress' && (event as ProgressEvent).message}
+                          {event.type === 'agent.start' && `Agent: ${(event as AgentStartEvent).agent}`}
+                          {event.type === 'agent.complete' && `Agent complete: ${(event as AgentCompleteEvent).agent}`}
+                          {event.type === 'stage.transition' &&
+                            `Stage: ${(event as StageTransitionEvent).from_stage || 'start'} → ${(event as StageTransitionEvent).to_stage}`}
+                          {event.type === 'stream.output' && (() => {
+                            const streamEvent = event as StreamOutputEvent
+                            const colorClass =
+                              streamEvent.source === 'agent' ? 'text-purple-600 dark:text-purple-400' :
+                                streamEvent.source === 'tool' ? 'text-amber-600 dark:text-amber-400' :
+                                  streamEvent.source === 'thinking' ? 'text-gray-500 dark:text-gray-400 italic' :
+                                    'text-green-600 dark:text-green-400' // assistant (default)
+
+                            const isLongMessage = streamEvent.text.length > 300
+                            const isExpanded = expandedMessages.has(i)
+                            const displayText = isLongMessage && !isExpanded
+                              ? streamEvent.text.substring(0, 300) + '...'
+                              : streamEvent.text
+
+                            return (
+                              <span className={colorClass}>
+                                [{streamEvent.source}] {displayText}
+                                {isLongMessage && (
+                                  <button
+                                    onClick={() => {
+                                      const newExpanded = new Set(expandedMessages)
+                                      if (isExpanded) {
+                                        newExpanded.delete(i)
+                                      } else {
+                                        newExpanded.add(i)
+                                      }
+                                      setExpandedMessages(newExpanded)
+                                    }}
+                                    className="ml-2 text-blue-500 dark:text-blue-400 hover:underline text-xs"
+                                  >
+                                    {isExpanded ? 'Show less' : 'Show more'}
+                                  </button>
+                                )}
+                              </span>
+                            )
+                          })()}
+                        </div>
+                      ))
+                    })()}
+                  </div>
+                )}
+              </>
+            )
           )}
         </div>
       )}

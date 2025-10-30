@@ -21,6 +21,9 @@ from models.events import (
     PreviewAvailableEvent,
     ProgressEvent,
     StageTransitionEvent,
+    StreamOutputEvent,
+    ToolCallEvent,
+    ToolResultEvent,
 )
 from models.execution import Execution, ExecutionStatus
 from services.execution_store import ExecutionStore
@@ -448,6 +451,33 @@ class ProcessManager:
                 preview_type=metadata.get("preview_type", "text"),
                 preview_data=metadata.get("preview_data"),
                 metadata=metadata,
+            )
+        elif event_type == "stream.output":
+            return StreamOutputEvent(
+                type="stream.output",
+                execution_id=execution_id,
+                text=metadata.get("text", ""),
+                source=metadata.get("source", "assistant"),
+                timestamp=datetime.now().isoformat(),
+            )
+        elif event_type == "tool.call":
+            return ToolCallEvent(
+                type="tool.call",
+                execution_id=execution_id,
+                tool_name=metadata.get("tool_name", ""),
+                tool_input=metadata.get("tool_input"),
+                tool_use_id=metadata.get("tool_use_id"),
+                timestamp=datetime.now().isoformat(),
+            )
+        elif event_type == "tool.result":
+            return ToolResultEvent(
+                type="tool.result",
+                execution_id=execution_id,
+                tool_use_id=metadata.get("tool_use_id", ""),
+                tool_name=metadata.get("tool_name", ""),
+                result=metadata.get("result"),
+                is_error=metadata.get("is_error", False),
+                timestamp=datetime.now().isoformat(),
             )
         else:
             # Unknown event type - return as log

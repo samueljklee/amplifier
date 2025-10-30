@@ -22,6 +22,7 @@ export default function ExecutionView() {
   const [loadingFile, setLoadingFile] = useState(false)
   const [viewMode, setViewMode] = useState<'raw' | 'preview'>('preview')
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
+  const [lastAnsweredPromptId, setLastAnsweredPromptId] = useState<string | null>(null)
 
   if (!executionId) {
     return <div>Invalid execution ID</div>
@@ -39,18 +40,16 @@ export default function ExecutionView() {
 
     const latestPrompt = promptEvents[promptEvents.length - 1]
 
-    // Check if already responded to this specific prompt
-    // Look for response submission AFTER this prompt's timestamp
-    const responded = events.some((e: any) =>
-      e.timestamp && latestPrompt.timestamp &&
-      e.timestamp > latestPrompt.timestamp &&
-      e.type === 'log' &&
-      (e.message?.includes('✓ Received answer') || e.message?.includes('✓ User response submitted'))
-    )
+    // Generate unique ID for this prompt (timestamp + prompt text)
+    const promptId = `${(latestPrompt as any).timestamp || ''}_${(latestPrompt as any).prompt_text || (latestPrompt as any).prompt || ''}`
 
-    // Simple: if responded, hide the prompt (will reappear if new prompt arrives)
-    return responded ? null : latestPrompt
-  }, [events])
+    // Check if user already answered this specific prompt (frontend state)
+    if (lastAnsweredPromptId === promptId) {
+      return null
+    }
+
+    return latestPrompt
+  }, [events, lastAnsweredPromptId])
 
   // Check if scenario needs input (fallback for old-style prompts)
   const needsInput = events.some(
@@ -293,7 +292,13 @@ export default function ExecutionView() {
               promptType={(activePrompt as any).prompt_type || 'text'}
               options={(activePrompt as any).prompt_options}
               onSubmit={async (response) => {
+                // Generate the same unique ID as in activePrompt detection
+                const promptId = `${(activePrompt as any).timestamp || ''}_${(activePrompt as any).prompt_text || (activePrompt as any).prompt || ''}`
+
+                // Immediately mark this prompt as answered (clears UI without waiting for backend)
+                setLastAnsweredPromptId(promptId)
                 setIsWaitingForResponse(true)
+
                 try {
                   await fetch(`/api/executions/${executionId}/respond`, {
                     method: 'POST',
@@ -303,6 +308,8 @@ export default function ExecutionView() {
                 } catch (error) {
                   console.error('Failed to submit response:', error)
                   alert('Failed to submit. Please try again.')
+                  // If submission failed, allow user to try again by clearing the answered state
+                  setLastAnsweredPromptId(null)
                 } finally {
                   setIsWaitingForResponse(false)
                 }

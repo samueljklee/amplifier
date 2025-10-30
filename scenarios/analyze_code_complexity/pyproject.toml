@@ -1,0 +1,32 @@
+[project]
+name = "analyze-code-complexity"
+description = "Analyze code complexity across multiple programming languages and generate comprehensive reports"
+version = "1.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "amplifier",
+    "click>=8.0",
+    "pydantic>=2.0"
+]
+
+[tool.uv.sources]
+amplifier = { path = "../../", editable = true }
+
+[tool.amplifier.workflow]
+stages = [
+    { id = "directory_input", type = "input", label = "Code Directory", prompt = "Enter path to directory containing code files" },
+    { id = "scan_files", type = "process", label = "Discover Code Files", depends_on = ["directory_input"] },
+    { id = "calculate_metrics", type = "process", label = "Calculate Complexity Metrics", depends_on = ["scan_files"] },
+    { id = "analyze_quality", type = "process", label = "Analyze Code Quality", depends_on = ["calculate_metrics"] },
+    { id = "generate_report", type = "process", label = "Generate Report", depends_on = ["analyze_quality"] },
+    { id = "final_report", type = "output", label = "Complexity Report", depends_on = ["generate_report"] }
+]
+
+[tool.amplifier.workflow.layout]
+# Workflow flows left-to-right: input -> scan -> analyze -> output
+positions.directory_input = [100, 200]
+positions.scan_files = [350, 200]
+positions.calculate_metrics = [600, 200]
+positions.analyze_quality = [850, 200]
+positions.generate_report = [1100, 200]
+positions.final_report = [1350, 200]

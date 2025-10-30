@@ -19,10 +19,12 @@ from models.execution import ExecutionRequest, ExecutionStatus
 from models.workflow import ConversationRequest, ConversationResponse
 from services.conversation_manager import ConversationManager
 from services.process_manager import ProcessManager
+from services.pty_manager import PTYManager
 from services.scenario_discovery import ScenarioDiscoveryService
 
 # Global instances
 process_manager = ProcessManager()
+pty_manager = PTYManager()
 scenario_discovery = ScenarioDiscoveryService(settings.scenarios_path)
 conversation_manager = ConversationManager()
 
@@ -542,6 +544,75 @@ async def get_workflow_session(session_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
 
     return session.model_dump()
+
+
+# Claude Code Terminal Endpoints
+
+
+@app.post("/api/claude/execute")
+async def execute_claude(request: dict[str, Any]) -> dict[str, str]:
+    """Start a Claude CLI session in PTY mode.
+
+    Request body:
+        {
+            "execution_id": "uuid",
+            "prompt": "initial prompt text"
+        }
+
+    Returns:
+        {"execution_id": "uuid", "status": "started"}
+    """
+    execution_id = request.get("execution_id")
+    prompt = request.get("prompt")
+
+    if not execution_id:
+        raise HTTPException(status_code=400, detail="execution_id required")
+
+    # Create PTY session
+    await pty_manager.create_session(execution_id, prompt)
+
+    return {"execution_id": execution_id, "status": "started"}
+
+
+@app.websocket("/ws/claude/{execution_id}")
+async def claude_terminal(websocket: WebSocket, execution_id: str) -> None:
+    """WebSocket for Claude CLI terminal I/O.
+
+    Handles bidirectional communication:
+    - Binary messages: Terminal I/O (PTY <-> xterm.js)
+    - Text messages (JSON): Control messages (resize)
+    """
+    await websocket.accept()
+
+    try:
+        # Start output streaming task (PTY → WebSocket)
+        output_task = asyncio.create_task(pty_manager.stream_output(execution_id, websocket))
+
+        # Handle input from WebSocket (WebSocket → PTY)
+        while True:
+            message = await websocket.receive()
+
+            if "bytes" in message:
+                # User keyboard input → PTY
+                await pty_manager.write_input(execution_id, message["bytes"])
+
+            elif "text" in message:
+                # Control message (e.g., resize)
+                import json
+
+                data = json.loads(message["text"])
+
+                if data.get("type") == "resize":
+                    await pty_manager.resize_terminal(execution_id, data["rows"], data["cols"])
+
+    except WebSocketDisconnect:
+        print(f"🔌 WebSocket disconnected for {execution_id}")
+    except Exception as e:
+        print(f"⚠️ WebSocket error for {execution_id}: {e}")
+    finally:
+        # Clean up
+        output_task.cancel()
+        await pty_manager.close_session(execution_id)
 
 
 # Health check

@@ -180,6 +180,20 @@ class ToolkitLogger:
             context["progress"] = progress
         self.info(f"Progress: {message}", **context)
 
+    def stream_text(self, text: str, source: str = "assistant") -> None:
+        """Stream text output with source attribution.
+
+        Args:
+            text: Text chunk to stream
+            source: Source of the text (assistant, tool, thinking, agent)
+        """
+        self.info(
+            "Stream output",
+            event_type="stream.output",
+            text=text,
+            source=source,
+        )
+
     def log_session_start(self, session_id: str, config: dict[str, Any], workspace: Path | None = None) -> None:
         """Log session start with configuration"""
         self.set_session(session_id)

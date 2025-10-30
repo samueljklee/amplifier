@@ -248,22 +248,24 @@ class EntityResolver:
             matching_pool = self.canonical_entities.copy()
             matching_pool.update(self.known_variations.values())
 
-            best_match, score, _ = process.extractOne(
+            result = process.extractOne(
                 entity_name,
                 matching_pool,
                 scorer=fuzz.ratio,
             )
 
-            if score >= self.fuzzy_threshold:
-                match = EntityMatch(
-                    original=entity_name,
-                    canonical=best_match,
-                    confidence=score / 100.0,
-                    match_type=MatchType.FUZZY,
-                )
-                self._cache_resolution(match)
-                self.canonical_entities.add(best_match)
-                return match
+            if result:
+                best_match, score, _ = result
+                if score >= self.fuzzy_threshold:
+                    match = EntityMatch(
+                        original=entity_name,
+                        canonical=best_match,
+                        confidence=score / 100.0,
+                        match_type=MatchType.FUZZY,
+                    )
+                    self._cache_resolution(match)
+                    self.canonical_entities.add(best_match)
+                    return match
 
         # 6. No match - create new canonical form
         self.canonical_entities.add(entity_name)

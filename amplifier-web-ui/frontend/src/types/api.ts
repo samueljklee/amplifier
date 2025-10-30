@@ -126,6 +126,27 @@ export interface PreviewAvailableEvent extends WebSocketEvent {
   metadata?: Record<string, any>
 }
 
+export interface StreamOutputEvent extends WebSocketEvent {
+  type: 'stream.output'
+  text: string
+  source: 'assistant' | 'tool' | 'thinking' | 'agent'
+}
+
+export interface ToolCallEvent extends WebSocketEvent {
+  type: 'tool.call'
+  tool_name: string
+  tool_input: any
+  tool_use_id?: string
+}
+
+export interface ToolResultEvent extends WebSocketEvent {
+  type: 'tool.result'
+  tool_use_id: string
+  tool_name: string
+  result: any
+  is_error: boolean
+}
+
 export type Event =
   | LogEvent
   | AgentStartEvent
@@ -139,3 +160,6 @@ export type Event =
   | InteractivePromptEvent
   | StageTransitionEvent
   | PreviewAvailableEvent
+  | StreamOutputEvent
+  | ToolCallEvent
+  | ToolResultEvent

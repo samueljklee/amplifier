@@ -1,0 +1,61 @@
+[project]
+name = "design-philosophy-explorer"
+description = "Explore design philosophies and analyze implementations for improvement"
+version = "1.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "amplifier",
+    "click>=8.0",
+    "pydantic>=2.0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["design_philosophy_explorer"]
+
+[tool.uv.sources]
+amplifier = { path = "../../", editable = true }
+
+[tool.amplifier.workflow]
+stages = [
+    { id = "question_input", type = "input", label = "Design Question", prompt = "What design question would you like to explore?" },
+    { id = "directory_input", type = "input", label = "Directory (Optional)", prompt = "Path to analyze (leave empty to skip)" },
+    { id = "explore_philosophy", type = "process", label = "Explore Philosophy", depends_on = ["question_input"] },
+    { id = "analyze_directory", type = "process", label = "Analyze Code", depends_on = ["directory_input", "explore_philosophy"] },
+    { id = "generate_critique", type = "process", label = "Generate Critique", depends_on = ["explore_philosophy"] },
+    { id = "generate_report", type = "output", label = "Final Report", depends_on = ["generate_critique"] }
+]
+
+[tool.amplifier.workflow.layout]
+positions.question_input = [100, 150]
+positions.directory_input = [100, 250]
+positions.explore_philosophy = [400, 150]
+positions.analyze_directory = [700, 200]
+positions.generate_critique = [1000, 150]
+positions.generate_report = [1300, 150]
+
+[tool.pyright]
+include = ["design_philosophy_explorer"]
+exclude = [
+    "**/__pycache__",
+    ".venv",
+    "build",
+    "dist"
+]
+typeCheckingMode = "basic"
+reportMissingTypeStubs = false
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
