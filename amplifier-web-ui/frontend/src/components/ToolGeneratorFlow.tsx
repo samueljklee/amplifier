@@ -88,14 +88,11 @@ export default function ToolGeneratorFlow() {
           : 'Press Enter to send, Shift+Enter for new line'}
       </p>
 
-      {/* Show sent message */}
+      {/* Show sent message as chat bubble (matches original design) */}
       {sentMessage && (
-        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <div className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
-            Your Request:
-          </div>
-          <div className="text-sm text-blue-800 dark:text-blue-200 whitespace-pre-wrap">
-            {sentMessage}
+        <div className="mt-6 flex justify-end">
+          <div className="max-w-[80%] rounded-lg p-4 bg-indigo-600 text-white">
+            <p className="whitespace-pre-wrap text-sm">{sentMessage}</p>
           </div>
         </div>
       )}
