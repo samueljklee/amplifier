@@ -175,11 +175,6 @@ class ProcessManager:
                 session_dir = self._find_session_dir(execution_id, execution.scenario_id)
                 self.execution_store.save_execution(execution, self.events.get(execution_id, []), session_dir)
 
-                # Re-discover scenarios after tool_generator completes (newly created tool)
-                if scenario_id == "tool_generator":
-                    await self._refresh_scenarios()
-                    print("✨ Re-discovered scenarios after tool_generator completion")
-
         except Exception as e:
             execution.status = ExecutionStatus.FAILED
             execution.completed_at = datetime.now()
@@ -712,17 +707,3 @@ class ProcessManager:
                 ),
             )
             return False
-
-    async def _refresh_scenarios(self) -> None:
-        """Re-discover scenarios (called after tool_generator completes)."""
-        try:
-            # Lazy-load discovery service
-            if self._scenario_discovery_service is None:
-                from services.scenario_discovery import ScenarioDiscoveryService
-
-                self._scenario_discovery_service = ScenarioDiscoveryService()
-
-            # Re-discover all scenarios
-            await self._scenario_discovery_service.discover_scenarios()
-        except Exception as e:
-            print(f"⚠️ Failed to refresh scenarios: {e}")

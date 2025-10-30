@@ -4,9 +4,8 @@ import { BrowserRouter, Route, Routes, Link, useLocation } from 'react-router-do
 import ScenarioList from './components/ScenarioList'
 import ExecutionView from './components/ExecutionView'
 import BlogWriterExecutionView from './components/BlogWriterExecutionView'
-import ToolGeneratorFlow from './components/ToolGeneratorFlow'
 import ScenarioDetailPage from './pages/ScenarioDetailPage'
-import { StudioIcon, CreateIcon } from './components/Icons'
+import { StudioIcon } from './components/Icons'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
@@ -35,12 +34,6 @@ function Navigation() {
     <nav className="flex gap-2">
       <Link to="/" className={linkClass('/')}>
         Scenarios
-      </Link>
-      <Link to="/create" className={linkClass('/create')}>
-        <span className="inline-flex items-center gap-2">
-          <CreateIcon size={16} />
-          Create New
-        </span>
       </Link>
     </nav>
   )
@@ -122,7 +115,6 @@ function App() {
               <Route path="/" element={<ScenarioList />} />
               <Route path="/scenarios/:scenarioId" element={<ScenarioDetailPage />} />
               <Route path="/executions/:executionId" element={<ExecutionRouter />} />
-              <Route path="/create" element={<ToolGeneratorFlow />} />
             </Routes>
           </main>
         </div>
