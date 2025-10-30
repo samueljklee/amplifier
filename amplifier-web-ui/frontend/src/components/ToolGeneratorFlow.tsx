@@ -4,12 +4,16 @@ import TerminalProxy from './TerminalProxy'
 export default function ToolGeneratorFlow() {
   const [executionId, setExecutionId] = useState<string | null>(null)
   const [currentAnswer, setCurrentAnswer] = useState('')
+  const [sentMessage, setSentMessage] = useState<string | null>(null)
   const [isWaiting, setIsWaiting] = useState(false)
 
   const handleSendMessage = async () => {
     if (!currentAnswer.trim()) return
 
     setIsWaiting(true)
+    setSentMessage(currentAnswer) // Save the message before clearing
+    const messageToSend = currentAnswer
+    setCurrentAnswer('') // Clear input
 
     try {
       // Use Claude CLI endpoint (terminal mode only)
@@ -19,7 +23,7 @@ export default function ToolGeneratorFlow() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           execution_id: execId,
-          prompt: currentAnswer
+          prompt: messageToSend
         })
       })
 
@@ -83,6 +87,18 @@ export default function ToolGeneratorFlow() {
           ? 'Processing...'
           : 'Press Enter to send, Shift+Enter for new line'}
       </p>
+
+      {/* Show sent message */}
+      {sentMessage && (
+        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <div className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+            Your Request:
+          </div>
+          <div className="text-sm text-blue-800 dark:text-blue-200 whitespace-pre-wrap">
+            {sentMessage}
+          </div>
+        </div>
+      )}
 
       {/* Terminal output */}
       {executionId && (
